@@ -39,9 +39,14 @@ object Prefs {
     fun carDismissed(ctx: Context): Boolean = sp(ctx).getBoolean("car_dismissed", false)
     fun setCarDismissed(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("car_dismissed", v).apply()
 
-    /** לדבר ברמקול של הטלפון גם כשהוא מחובר לרכב (אם הרכב לא משמיע את הקול). */
-    fun phoneSpeaker(ctx: Context): Boolean = sp(ctx).getBoolean("phone_speaker", false)
-    fun setPhoneSpeaker(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("phone_speaker", v).apply()
+    /**
+     * איך היא מדברת כשהטלפון מחובר לרכב:
+     * media = רגיל, ברמקולי הרכב כשהרכב על מדיה. call = דרך ערוץ השיחות של הרכב (גם כשהרכב על רדיו).
+     * phone = מרמקול הטלפון.
+     */
+    fun carVoice(ctx: Context): String =
+        sp(ctx).getString("car_voice", if (sp(ctx).getBoolean("phone_speaker", false)) "phone" else "media") ?: "media"
+    fun setCarVoice(ctx: Context, v: String) = sp(ctx).edit().putString("car_voice", v).apply()
 
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""

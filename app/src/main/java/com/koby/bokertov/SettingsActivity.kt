@@ -124,15 +124,25 @@ class SettingsActivity : AppCompatActivity() {
         carView = text("", 18f)
         col.addView(carView)
         col.addView(bigButton("בחר רכב") { chooseCar() })
-        val phoneSp = android.widget.Switch(this).apply {
-            text = "לדבר ברמקול של הטלפון גם כשמחובר לרכב"
-            textSize = 19f
-            isChecked = Prefs.phoneSpeaker(this@SettingsActivity)
-            setPadding(0, dp(10), 0, dp(10))
-            setOnCheckedChangeListener { _, on -> Prefs.setPhoneSpeaker(this@SettingsActivity, on) }
+        col.addView(text("איפה היא מדברת כשהטלפון מחובר לרכב:", 19f, true))
+        val voiceGroup = android.widget.RadioGroup(this)
+        val options = listOf(
+            "media" to "ברמקולי הרכב, כשהרכב על \"מדיה\" (רגיל)",
+            "call" to "ברמקולי הרכב כמו שיחת טלפון (עובד גם כשהרכב על רדיו)",
+            "phone" to "ברמקול של הטלפון"
+        )
+        val current = Prefs.carVoice(this)
+        for ((i, o) in options.withIndex()) {
+            voiceGroup.addView(android.widget.RadioButton(this).apply {
+                id = 100 + i
+                text = o.second
+                textSize = 18f
+                isChecked = o.first == current
+                setPadding(0, dp(8), 0, dp(8))
+            })
         }
-        col.addView(phoneSp)
-        col.addView(text("דלוק: אם ברכב לא שומעים אותי, אדבר מהרמקול של הטלפון.", 16f))
+        voiceGroup.setOnCheckedChangeListener { _, id -> Prefs.setCarVoice(this, options[id - 100].first) }
+        col.addView(voiceGroup)
         col.addView(text("איך בוחרים: 1. מחברים את הטלפון לרכב בבלוטות'. 2. לוחצים \"בחר רכב\". 3. מאשרים שזה הרכב שלך. אחר כך, כשהטלפון מתחבר לרכב, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". אם הקול לא נשמע ברכב, בוחרים ברכב מקור קול \"בלוטות'\".", 16f))
 
         col.addView(text("מה אפשר להגיד", 22f, true))

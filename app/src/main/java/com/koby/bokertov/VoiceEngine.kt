@@ -86,7 +86,7 @@ class VoiceEngine(
         running = false
         UiState.face = Face.OFF
         UiState.caption = ""
-        routeToPhone(false)
+        routeCar("media")
         Earcon.restore(ctx)
         main.removeCallbacksAndMessages(null)
         stopRec()
@@ -150,16 +150,23 @@ class VoiceEngine(
             return
         }
         main.removeCallbacks(speakTimeout)
-        routeToPhone(Prefs.phoneSpeaker(ctx) && actions.carConnected())
+        val mode = if (actions.carConnected()) Prefs.carVoice(ctx) else "media"
+        routeCar(mode)
+        // ערוץ השיחות של הרכב לוקח רגע להתחבר, לכן מחכים לפני שמתחילים לדבר
+        val wait = when (mode) { "call" -> 1300L; "phone" -> 250L; else -> 0L }
         // רשת ביטחון: אם הקול נתקע, ממשיכים אחרי זמן סביר
-        main.postDelayed(speakTimeout, 4000L + text.length * 120L)
-        curUtt = "u" + System.nanoTime()
-        val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, curUtt)
-        if (res != TextToSpeech.SUCCESS) {
-            DebugLog.add("הקול לא הצליח לדבר (קוד $res)")
-            main.removeCallbacks(speakTimeout)
-            main.postDelayed({ speakFinished() }, 300)
+        main.postDelayed(speakTimeout, wait + 4000L + text.length * 120L)
+        val say = Runnable {
+            if (!running || !speaking) return@Runnable
+            curUtt = "u" + System.nanoTime()
+            val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, curUtt)
+            if (res != TextToSpeech.SUCCESS) {
+                DebugLog.add("הקול לא הצליח לדבר (קוד $res)")
+                main.removeCallbacks(speakTimeout)
+                main.postDelayed({ speakFinished() }, 300)
+            }
         }
+        if (wait > 0) main.postDelayed(say, wait) else say.run()
     }
 
     /** אם זרם המדיה מושתק או על אפס (למשל השתקה שנתקעה), מחזירים אותו, אחרת הדיבור לא ישמע בכלל. */
@@ -182,41 +189,70 @@ class VoiceEngine(
         } catch (e: Exception) { }
     }
 
-    private var routedToPhone = false
+    private var routed = ""   // "" = רגיל, "phone" = רמקול הטלפון, "call" = ערוץ השיחות של הרכב
 
-    /** מכריחים את הדיבור לצאת מרמקול הטלפון (גם כשהרכב מחובר), ומחזירים אחרי שהיא סיימה לדבר. */
-    private fun routeToPhone(on: Boolean) {
-        if (on == routedToPhone) return
+    /** בוחרת לאן הדיבור יוצא: רגיל, רמקול הטלפון, או ערוץ השיחות של הרכב. מחזירה לרגיל אחרי הדיבור. */
+    private fun routeCar(mode: String) {
+        val want = if (mode == "phone" || mode == "call") mode else ""
+        if (want == routed) return
         try {
             val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val attrs = android.media.AudioAttributes.Builder()
-                .setUsage(if (on) android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION else android.media.AudioAttributes.USAGE_MEDIA)
-                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build()
-            if (on) {
+            // מבטלים את הניתוב הקודם
+            if (routed == "phone") {
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = false
+            } else if (routed == "call") {
+                if (android.os.Build.VERSION.SDK_INT >= 31) am.clearCommunicationDevice()
+                else {
+                    @Suppress("DEPRECATION")
+                    am.isBluetoothScoOn = false
+                    @Suppress("DEPRECATION")
+                    am.stopBluetoothSco()
+                }
+            }
+            if (want.isEmpty()) {
+                am.mode = AudioManager.MODE_NORMAL
+            } else {
                 val st = AudioManager.STREAM_VOICE_CALL
                 val max = am.getStreamMaxVolume(st)
                 if (am.getStreamVolume(st) < max * 0.7f) am.setStreamVolume(st, (max * 0.8f).toInt(), 0)
                 am.mode = AudioManager.MODE_IN_COMMUNICATION
-                @Suppress("DEPRECATION")
-                am.isSpeakerphoneOn = true
-                DebugLog.add("מדברת ברמקול הטלפון")
-            } else {
-                @Suppress("DEPRECATION")
-                am.isSpeakerphoneOn = false
-                am.mode = AudioManager.MODE_NORMAL
+                if (want == "phone") {
+                    @Suppress("DEPRECATION")
+                    am.isSpeakerphoneOn = true
+                    DebugLog.add("מדברת ברמקול הטלפון")
+                } else {
+                    var done = false
+                    if (android.os.Build.VERSION.SDK_INT >= 31) {
+                        val dev = am.availableCommunicationDevices.firstOrNull {
+                            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == 26
+                        }
+                        if (dev != null) done = am.setCommunicationDevice(dev)
+                    }
+                    if (!done) {
+                        @Suppress("DEPRECATION")
+                        am.startBluetoothSco()
+                        @Suppress("DEPRECATION")
+                        am.isBluetoothScoOn = true
+                    }
+                    DebugLog.add("מדברת דרך ערוץ השיחות של הרכב")
+                }
             }
+            val attrs = android.media.AudioAttributes.Builder()
+                .setUsage(if (want.isEmpty()) android.media.AudioAttributes.USAGE_MEDIA else android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
             tts?.setAudioAttributes(attrs)
-            routedToPhone = on
+            routed = want
         } catch (e: Exception) {
-            DebugLog.add("לא הצלחתי לנתב את הקול לטלפון: ${e.javaClass.simpleName}")
+            DebugLog.add("לא הצלחתי לנתב את הקול: ${e.javaClass.simpleName}")
         }
     }
 
     private fun speakFinished() {
         main.removeCallbacks(speakTimeout)
         if (!speaking) return
-        routeToPhone(false)
+        routeCar("media")
         speaking = false
         val cb = onSpeakDone
         onSpeakDone = null
