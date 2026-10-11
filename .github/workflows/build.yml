@@ -24,7 +24,7 @@ jobs:
         with:
           name: boker-tov-apk
           path: app/build/outputs/apk/debug/*.apk
-      - name: Publish release (stable link: releases/latest/download/boker-tov.apk)
+      - name: Publish release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
