@@ -348,15 +348,23 @@ class Actions(private val ctx: Context) {
         if (dest.isBlank()) return Outcome.AskText("לאן לנווט?") { navigate(it) }
         val home = Text.norm(dest) in setOf("הביתה", "הבית", "בית", "לבית")
         return Outcome.Say("מנווטת ${if (home) "הביתה" else "ל$dest"}") {
-            val uri = if (home) Uri.parse("waze://?favorite=Home&navigate=yes")
-            else Uri.parse("https://waze.com/ul?q=${Uri.encode(dest)}&navigate=yes")
-            val i = Intent(Intent.ACTION_VIEW, uri)
+            // קודם וייז (אם מותקנת), אחר כך מפות גוגל, ואחר כך כל אפליקציית מפות או הדפדפן
+            val tries = ArrayList<Intent>()
             if (installed("com.waze")) {
-                i.setPackage("com.waze")
-                launch(i)
-            } else {
-                launch(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=${Uri.encode(if (home) "home" else dest)}")))
+                val uri = if (home) Uri.parse("waze://?favorite=Home&navigate=yes")
+                else Uri.parse("https://waze.com/ul?q=${Uri.encode(dest)}&navigate=yes")
+                tries.add(Intent(Intent.ACTION_VIEW, uri).setPackage("com.waze"))
             }
+            val gm = Uri.parse("google.navigation:q=${Uri.encode(if (home) "Home" else dest)}&mode=d")
+            tries.add(Intent(Intent.ACTION_VIEW, gm).setPackage("com.google.android.apps.maps"))
+            tries.add(Intent(Intent.ACTION_VIEW, gm))
+            tries.add(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://www.google.com/maps/dir/?api=1&destination=${Uri.encode(if (home) "Home" else dest)}&travelmode=driving")
+                )
+            )
+            if (tries.none { launch(it) }) say("לא הצלחתי לפתוח ניווט. צריך להתקין וייז או מפות גוגל")
         }
     }
 
