@@ -45,6 +45,14 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        // נפתח מצעד "בחר רכב" או מההתראה: מציגים ישר את רשימת הרכבים
+        if (intent.getBooleanExtra(EXTRA_CHOOSE_CAR, false)) {
+            window.decorView.post { chooseCar() }
+        }
+    }
+
+    companion object {
+        const val EXTRA_CHOOSE_CAR = "choose_car"
     }
 
     override fun onResume() {

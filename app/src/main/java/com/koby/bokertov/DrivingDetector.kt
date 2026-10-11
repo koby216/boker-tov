@@ -32,7 +32,8 @@ object DrivingDetector {
 
     /** רושמים את הבקשה. אפשר לקרוא שוב ושוב, היא מחליפה את הקודמת. */
     fun register(ctx: Context) {
-        if (Prefs.carAddress(ctx).isEmpty()) return
+        // בלי רכב שנבחר, ובלי עניין ברכב: לא צריך זיהוי נסיעה
+        if (Prefs.carAddress(ctx).isEmpty() && Prefs.carDismissed(ctx)) return
         if (Build.VERSION.SDK_INT >= 29 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -87,11 +88,44 @@ class DrivingReceiver : BroadcastReceiver() {
 
     /** התחילה נסיעה: רק זוכרים שצריך להודיע, ולא מדברים בנסיעה. */
     private fun onDrivingStart(ctx: Context) {
-        if (Prefs.carAddress(ctx).isEmpty()) return
         val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+        if (Prefs.carAddress(ctx).isEmpty()) {
+            // עוד לא נבחר רכב: נזכיר לבחור כשהרכב יעצור
+            if (!Prefs.carDismissed(ctx)) sp.edit().putBoolean("car_alert_pending", true).apply()
+            return
+        }
         val pending = !Actions(ctx).carConnected()
         sp.edit().putBoolean("car_alert_pending", pending).apply()
         DebugLog.add(if (pending) "זוהתה נסיעה, לא מחוברת לרכב. אודיע כשיעצרו" else "זוהתה נסיעה, מחוברת לרכב")
+    }
+
+    /** עוד לא נבחר רכב: אומרים בקול ומציגים התראה, לכל היותר פעם ביום. */
+    private fun chooseCarReminder(ctx: Context, sp: android.content.SharedPreferences) {
+        val now = System.currentTimeMillis()
+        if (now - sp.getLong("choose_alert_at", 0L) < 24 * 60 * 60 * 1000L) return
+        sp.edit().putLong("choose_alert_at", now).apply()
+        DebugLog.add("נסיעה, ועוד לא נבחר רכב")
+        val pr = goAsync()
+        QuickSpeak.say(ctx, "עוד לא בחרת רכב. כדי שאעזור לך בנסיעות, פתח את בוקר טוב ובחר רכב", flush = true)
+        Handler(Looper.getMainLooper()).postDelayed({ pr.finish() }, 9000)
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(NotificationChannel("drive", "נסיעה", NotificationManager.IMPORTANCE_HIGH))
+        val open = PendingIntent.getActivity(
+            ctx, 6,
+            Intent(ctx, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_CHOOSE_CAR, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val n = NotificationCompat.Builder(ctx, "drive")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("עוד לא נבחר רכב")
+            .setContentText("כשעומדים: לחץ כאן כדי לבחור את הרכב")
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        try { nm.notify(10, n) } catch (e: SecurityException) { }
     }
 
     /** הרכב עצר: עכשיו אפשר להודיע. */
@@ -99,7 +133,11 @@ class DrivingReceiver : BroadcastReceiver() {
         val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
         if (!sp.getBoolean("car_alert_pending", false)) return
         sp.edit().putBoolean("car_alert_pending", false).apply()
-        if (Prefs.carAddress(ctx).isEmpty() || Actions(ctx).carConnected()) return
+        if (Prefs.carAddress(ctx).isEmpty()) {
+            chooseCarReminder(ctx, sp)
+            return
+        }
+        if (Actions(ctx).carConnected()) return
         val now = System.currentTimeMillis()
         if (now - sp.getLong("drive_alert_at", 0L) < 30 * 60 * 1000L) return   // לא יותר מפעם ב-30 דקות
         sp.edit().putLong("drive_alert_at", now).apply()

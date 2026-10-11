@@ -111,12 +111,20 @@ class MainActivity : AppCompatActivity() {
             "שלא תיפסק ברקע", "אשר", null
         ) {
             startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        },
+        Step(
+            6, { Prefs.carAddress(this).isNotEmpty() || Prefs.carDismissed(this) },
+            "אם אתה משתמש בי ברכב, צריך לבחור את הרכב שלך. לחץ על הכפתור הכחול ובחר את הרכב מהרשימה. אם אתה לא משתמש בי ברכב, לחץ דלג.",
+            "בחירת הרכב", "בחר רכב", null
+        ) {
+            startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_CHOOSE_CAR, true))
         }
     )
 
     private fun nextStep(): Step? = steps().firstOrNull { !it.done() }
 
     private var setupSkipped = false
+    private var currentStepId = -1
     private var setupSpoken = -1
     private var inSetup = false
     private var leftForStep = -1
@@ -124,6 +132,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSetup(step: Step) {
         inSetup = true
+        currentStepId = step.id
         if (setupSpoken != step.id) {
             setupSpoken = step.id
             QuickSpeak.say(this, step.say, flush = true)
@@ -267,6 +276,8 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, dp(14), 0, dp(4))
             visibility = View.GONE
             setOnClickListener {
+                // "דלג" בצעד בחירת הרכב: זוכרים, ולא שואלים שוב
+                if (currentStepId == 6) Prefs.setCarDismissed(this@MainActivity, true)
                 setupSkipped = true
                 visibility = View.GONE
                 autoStart()

@@ -35,10 +35,14 @@ object Prefs {
     fun keepListening(ctx: Context): Boolean = sp(ctx).getBoolean("keep_listening", false)
     fun setKeepListening(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("keep_listening", v).apply()
 
+    /** המשתמש אמר "דלג" בצעד בחירת הרכב: לא מציקים לו שוב. */
+    fun carDismissed(ctx: Context): Boolean = sp(ctx).getBoolean("car_dismissed", false)
+    fun setCarDismissed(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("car_dismissed", v).apply()
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =
-        sp(ctx).edit().putString("car_addr", address).putString("car_name", name).apply()
+        sp(ctx).edit().putString("car_addr", address).putString("car_name", name).putBoolean("car_dismissed", false).apply()
 
     /** מה האפליקציה אומרת כשהיא מתחילה להקשיב. */
     fun listeningLine(ctx: Context, prefix: String): String =
