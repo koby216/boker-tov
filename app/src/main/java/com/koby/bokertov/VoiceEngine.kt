@@ -496,7 +496,12 @@ class VoiceEngine(
     }
 
     fun onNewMessage(sender: String, text: String) {
-        if (!running || state != St.WAKE || speaking) return
+        if (!running || state != St.WAKE || speaking) {
+            // באמצע שיחה איתה: אומרים רק שהגיעה הודעה, אחרי שהיא מסיימת לדבר
+            DebugLog.add("הודעה מ$sender הגיעה בזמן שהיא עסוקה")
+            QuickSpeak.say(ctx, "הגיעה הודעה מ$sender")
+            return
+        }
         deliver(Outcome.Ask("הודעה מ$sender. להקריא?", { Outcome.Say(text) }, { Outcome.Silent }))
     }
 

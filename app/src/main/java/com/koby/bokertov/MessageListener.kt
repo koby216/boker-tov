@@ -1,13 +1,48 @@
 package com.koby.bokertov
 
 import android.app.Notification
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 
-/** שומע התראות של וואטסאפ כדי שאפשר יהיה להקריא הודעות נכנסות. */
+/** מדברת משפט קצר גם כשהאפליקציה כבויה (בלי מיקרופון), למשל "הגיעה הודעה". */
+object QuickSpeak {
+    private var tts: TextToSpeech? = null
+    private var ready = false
+    private val pending = ArrayList<String>()
+
+    fun say(ctx: Context, text: String) {
+        val app = ctx.applicationContext
+        if (tts == null) {
+            tts = TextToSpeech(app) { st ->
+                if (st == TextToSpeech.SUCCESS) {
+                    tts?.setLanguage(Locale("he", "IL"))
+                    ready = true
+                    pending.forEach { tts?.speak(it, TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime()) }
+                    pending.clear()
+                } else {
+                    DebugLog.add("הקול להודעות לא עלה (קוד $st)")
+                }
+            }
+        }
+        if (ready) tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime())
+        else pending.add(text)
+    }
+}
+
+/** שומע התראות של וואטסאפ כדי להודיע על הודעה נכנסת ולאפשר להקריא אותה. */
 class MessageListener : NotificationListenerService() {
+
+    private var lastKey = ""
+    private var lastAt = 0L
+
+    override fun onListenerConnected() {
+        DebugLog.add("המאזין להודעות וואטסאפ פעיל")
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
@@ -18,9 +53,20 @@ class MessageListener : NotificationListenerService() {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
         if (title.isBlank() || text.isBlank()) return
+
+        // וואטסאפ מעדכנת את אותה התראה כמה פעמים. מדווחים פעם אחת.
+        val key = "$title|$text"
+        val now = System.currentTimeMillis()
+        if (key == lastKey && now - lastAt < 8000) return
+        lastKey = key
+        lastAt = now
+
         MessageStore.add(title, text)
+        DebugLog.add("הגיעה הודעה מ$title")
         Handler(Looper.getMainLooper()).post {
-            VoiceEngine.current?.onNewMessage(title, text)
+            val engine = VoiceEngine.current
+            if (engine != null) engine.onNewMessage(title, text)
+            else QuickSpeak.say(this, "הגיעה הודעה מ$title")
         }
     }
 }
