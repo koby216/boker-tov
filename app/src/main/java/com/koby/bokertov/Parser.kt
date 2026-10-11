@@ -146,6 +146,14 @@ object Parser {
         return kept.joinToString(" ")
     }
 
+    /** מרכיבה בקשת תזכורת: עם זמן (טיימר או שעה), או בלי, ואז שואלים. */
+    private fun remindFrom(rest0: String): Cmd {
+        val rest = rest0.trim()
+        duration(rest)?.let { (sec, left) -> return Cmd.Timer(sec, stripLead(left, "בעוד", "ב", "את")) }
+        clockTime(rest)?.let { (h, m) -> return Cmd.Alarm(h, m, stripLead(removeTimeWords(rest), "ב", "את")) }
+        return Cmd.Remind(stripLead(rest, "ב", "את"))
+    }
+
     private fun stripLead(rest: String, vararg words: String): String {
         var r = rest.trim()
         var changed = true
@@ -203,6 +211,11 @@ object Parser {
             return if (q.isEmpty()) Cmd.Play else Cmd.PlayMusic(q)
         }
         if (has("תמשיך מוזיקה", "המשך מוזיקה", "תפעיל מוזיקה", "הפעל מוזיקה")) return Cmd.Play
+
+        if (t.contains("תזכורת") && !has("מחק", "בטל", "תמחק", "תבטל")) {
+            // "תעשי לי תזכורת", "תוסיפי תזכורת", "תזכורת לקחת תרופה בשבע"...
+            return remindFrom(stripLead(t.substringAfter("תזכורת"), "חדשה", "ל", "לי"))
+        }
 
         if (has("טיימר", "תזכיר לי", "תזכירי לי", "הזכר לי", "בעוד") && !has("תעיר", "מעורר")) {
             duration(t)?.let { (sec, rest) ->

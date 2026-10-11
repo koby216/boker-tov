@@ -388,7 +388,17 @@ class VoiceEngine(
                 onWakeText(hit)
             }
             St.COMMAND -> {
-                val cmd = list.firstNotNullOfOrNull { Parser.parse(it) }
+                val phrase = Prefs.wakePhrase(ctx)
+                val cleaned = list.map { raw ->
+                    val n = Text.norm(raw)
+                    if (n.contains(phrase)) n.substringAfter(phrase).trim() else raw
+                }
+                if (list.any { Text.norm(it).contains(phrase) } && cleaned.all { it.isBlank() }) {
+                    // אמרו "בוקר טוב" כשהיא כבר מחכה לבקשה: ממשיכים להקשיב בלי להתלונן
+                    main.postDelayed({ listen() }, 100)
+                    return
+                }
+                val cmd = cleaned.firstNotNullOfOrNull { Parser.parse(it) }
                 if (cmd == null) {
                     if (quietFirst) {
                         // אחרי "אני מקשיבה": דיבור רקע שלא מובן כבקשה מתקבל בשקט. אחרי כמה ניסיונות חוזרים להמתין.
