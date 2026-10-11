@@ -102,6 +102,7 @@ class VoiceEngine(
         onSpeakDone = then
         main.removeCallbacks(watchdog)
         main.removeCallbacks(wakeTrigger)
+        main.removeCallbacks(partialTrigger)
         stopRec()
         DebugLog.add("אומרת: $text")
         if (tries == 0) {
@@ -178,7 +179,7 @@ class VoiceEngine(
         if (running && !speaking) {
             DebugLog.add("הזיהוי לא הגיב, מתחילה מחדש")
             stopRec()
-            listen()
+            main.postDelayed({ listen() }, 500)
         }
     }
 
@@ -190,16 +191,24 @@ class VoiceEngine(
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             main.removeCallbacks(watchdog)
-            main.postDelayed(watchdog, 20000)
+            main.postDelayed(watchdog, 12000)
             if (beepOnReady) { beepOnReady = false; beep() }
         }
-        override fun onBeginningOfSpeech() {}
+        override fun onBeginningOfSpeech() { DebugLog.add("שמעתי התחלת דיבור") }
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {}
+        override fun onEndOfSpeech() { DebugLog.add("הדיבור הסתיים") }
         override fun onPartialResults(partialResults: Bundle?) {
-            if (!running || speaking || state != St.WAKE) return
+            if (!running || speaking) return
             val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+            if (list.isEmpty()) return
+            if (state != St.WAKE) {
+                // הטלפון מחזיר את התשובה הסופית באיחור, לכן פועלים על החלקית אחרי רגע של שקט
+                lastPartial = list
+                main.removeCallbacks(partialTrigger)
+                main.postDelayed(partialTrigger, if (state == St.FREE) 1300L else 900L)
+                return
+            }
             val phrase = Prefs.wakePhrase(ctx)
             val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) } ?: return
             // מחכים רגע קצר למקרה שממשיכים לדבר ("בוקר טוב תתקשר לדני")
@@ -211,6 +220,7 @@ class VoiceEngine(
 
         override fun onError(error: Int) {
             if (!running || speaking) return
+            if (rec == null) return   // שגיאה שנשארה ממופע זיהוי שכבר נסגר
             main.removeCallbacks(watchdog)
             if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
                 DebugLog.add("שגיאת זיהוי $error")
@@ -234,7 +244,9 @@ class VoiceEngine(
 
         override fun onResults(results: Bundle?) {
             main.removeCallbacks(watchdog)
+            main.removeCallbacks(partialTrigger)
             if (!running || speaking) return
+            if (rec == null) return   // תשובה שנשארה ממופע זיהוי שכבר נסגר
             val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             if (list.isEmpty()) { onError(SpeechRecognizer.ERROR_NO_MATCH); return }
             handleResults(list)
@@ -297,6 +309,19 @@ class VoiceEngine(
                 }
                 if (idx != null && idx < q.labels.size) deliver(q.onPick(idx)) else noInput(heard = true)
             }
+        }
+    }
+
+    private var lastPartial: List<String> = emptyList()
+
+    private val partialTrigger = Runnable {
+        val l = lastPartial
+        lastPartial = emptyList()
+        if (l.isNotEmpty() && running && !speaking && state != St.WAKE) {
+            DebugLog.add("(חלקי) ${l.first()}")
+            main.removeCallbacks(watchdog)
+            stopRec()
+            handleResults(l)
         }
     }
 
