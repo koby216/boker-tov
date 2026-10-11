@@ -71,7 +71,10 @@ class ListeningService : Service() {
             )
             e.start()
         }
-        if (announce) engine?.announceThenListen("אני מקשיבה", 500)
+        val msgSender = intent?.getStringExtra(EXTRA_SENDER)
+        val msgText = intent?.getStringExtra(EXTRA_TEXT)
+        if (msgSender != null && msgText != null) engine?.askToRead(msgSender, msgText, 700)
+        else if (announce) engine?.announceThenListen("אני מקשיבה", 500)
         return START_STICKY
     }
 
@@ -126,15 +129,16 @@ class ListeningService : Service() {
         private const val CHANNEL = "listening"
         private const val ACTION_STOP = "com.koby.bokertov.STOP"
         private const val EXTRA_ANNOUNCE = "announce"
+        private const val EXTRA_SENDER = "msg_sender"
+        private const val EXTRA_TEXT = "msg_text"
 
         @Volatile
         var running = false
 
-        fun start(ctx: Context, announce: Boolean = false) {
-            ContextCompat.startForegroundService(
-                ctx,
-                Intent(ctx, ListeningService::class.java).putExtra(EXTRA_ANNOUNCE, announce)
-            )
+        fun start(ctx: Context, announce: Boolean = false, sender: String? = null, text: String? = null) {
+            val i = Intent(ctx, ListeningService::class.java).putExtra(EXTRA_ANNOUNCE, announce)
+            if (sender != null && text != null) i.putExtra(EXTRA_SENDER, sender).putExtra(EXTRA_TEXT, text)
+            ContextCompat.startForegroundService(ctx, i)
         }
 
         fun stop(ctx: Context) {

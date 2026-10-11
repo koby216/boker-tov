@@ -2,6 +2,7 @@ package com.koby.bokertov
 
 import android.app.Notification
 import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.service.notification.NotificationListenerService
@@ -67,7 +68,29 @@ class MessageListener : NotificationListenerService() {
         Handler(Looper.getMainLooper()).post {
             val engine = VoiceEngine.current
             if (engine != null) engine.onNewMessage(title, text)
-            else QuickSpeak.say(this, "הגיעה הודעה מ$title")
+            else openAppForMessage(title, text)
+        }
+    }
+
+    /** האפליקציה כבויה: מביאים אותה למסך כדי שתשאל "להקריא?". בנסיעה רק אומרים שהגיעה הודעה. */
+    private fun openAppForMessage(title: String, text: String) {
+        try {
+            if (Actions(this).inCar()) {
+                QuickSpeak.say(this, "הגיעה הודעה מ$title")
+                return
+            }
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(MainActivity.EXTRA_SENDER, title)
+                    .putExtra(MainActivity.EXTRA_TEXT, text)
+            )
+            // אם המסך לא נפתח (אנדרואיד חסם), לפחות אומרים שהגיעה הודעה
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!ListeningService.running) QuickSpeak.say(this, "הגיעה הודעה מ$title")
+            }, 4000)
+        } catch (e: Exception) {
+            QuickSpeak.say(this, "הגיעה הודעה מ$title")
         }
     }
 }

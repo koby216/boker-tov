@@ -504,6 +504,21 @@ class VoiceEngine(
         }
     }
 
+    /** שואלת "הודעה מ... להקריא?" ואם מאשרים: מקריאה, ואז שואלת אם לענות. */
+    fun askToRead(sender: String, text: String, delayMs: Long = 0) {
+        main.postDelayed({
+            if (running && !speaking) {
+                deliver(
+                    Outcome.Ask(
+                        "הודעה מ$sender. להקריא?",
+                        { Outcome.Say(text, next = { actions.replyFlow(sender) }) },
+                        { Outcome.Silent }
+                    )
+                )
+            }
+        }, delayMs)
+    }
+
     fun onNewMessage(sender: String, text: String) {
         if (!running || state != St.WAKE || speaking) {
             // באמצע שיחה איתה: אומרים רק שהגיעה הודעה, אחרי שהיא מסיימת לדבר
@@ -511,13 +526,7 @@ class VoiceEngine(
             QuickSpeak.say(ctx, "הגיעה הודעה מ$sender")
             return
         }
-        deliver(
-            Outcome.Ask(
-                "הודעה מ$sender. להקריא?",
-                { Outcome.Say(text, next = { actions.replyFlow(sender) }) },
-                { Outcome.Silent }
-            )
-        )
+        askToRead(sender, text)
     }
 
     companion object {

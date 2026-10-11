@@ -77,18 +77,34 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         buildUi()
         if (!ListeningService.running) Earcon.restoreIfStuck(this)
-        if (savedInstanceState == null && !intent.getBooleanExtra(EXTRA_IDLE, false)) autoStart()
+        if (savedInstanceState == null) routeIntent(intent)
+    }
+
+    /** מחליטה מה לעשות לפי הסיבה שהמסך נפתח: כיבוי, הודעה נכנסת, או פתיחה רגילה. */
+    private fun routeIntent(i: Intent) {
+        when {
+            i.getBooleanExtra(EXTRA_IDLE, false) -> refresh()
+            i.hasExtra(EXTRA_SENDER) && hasMic() -> {
+                ListeningService.start(
+                    this, sender = i.getStringExtra(EXTRA_SENDER), text = i.getStringExtra(EXTRA_TEXT)
+                )
+                mainButton.postDelayed({ refresh() }, 700)
+            }
+            else -> autoStart()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         // כשהמסך מופיע אחרי שהיא נכבתה, לא מפעילים מחדש לבד: מחכים ללחיצה על הפעל
-        if (intent.getBooleanExtra(EXTRA_IDLE, false)) refresh() else autoStart()
+        routeIntent(intent)
     }
 
     companion object {
         const val EXTRA_IDLE = "idle"
+        const val EXTRA_SENDER = "msg_sender"
+        const val EXTRA_TEXT = "msg_text"
     }
 
     override fun onResume() {
