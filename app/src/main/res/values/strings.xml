@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">בוקר טוב</string>
+    <string name="accessibility_description">מאפשר לאפליקציה לבצע בקול פעולות במסך: חזרה, גלילה, לחיצה והקלדה. לא פועל באפליקציות של בנקים ותשלומים.</string>
+</resources>

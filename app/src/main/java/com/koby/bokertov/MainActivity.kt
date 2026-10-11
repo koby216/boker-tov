@@ -1,0 +1,189 @@
+package com.koby.bokertov
+
+import android.Manifest
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var status: TextView
+    private lateinit var mainButton: Button
+    private lateinit var checks: LinearLayout
+
+    private val permissions = arrayOf(
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.READ_CONTACTS,
+        Manifest.permission.CALL_PHONE,
+        Manifest.permission.ANSWER_PHONE_CALLS,
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.POST_NOTIFICATIONS
+    )
+
+    private val askPermissions =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
+            refresh()
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        buildUi()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refresh()
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun text(s: String, size: Float, bold: Boolean = false, color: Int = Color.parseColor("#222222")): TextView =
+        TextView(this).apply {
+            text = s
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(6), 0, dp(6))
+        }
+
+    private fun bigButton(label: String, onClick: () -> Unit): Button = Button(this).apply {
+        text = label
+        textSize = 20f
+        isAllCaps = false
+        setOnClickListener { onClick() }
+    }
+
+    private fun buildUi() {
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(24), dp(20), dp(40))
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
+        col.addView(text("בוקר טוב", 34f, true, Color.parseColor("#B8860B")))
+        status = text("", 22f, true)
+        col.addView(status)
+
+        mainButton = bigButton("הפעל") { toggle() }.apply { textSize = 28f }
+        col.addView(mainButton, LinearLayout.LayoutParams(-1, dp(90)))
+
+        col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
+        checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(checks)
+
+        col.addView(text("שם לאפליקציה (לא חובה)", 20f, true))
+        col.addView(text("אם תוסיף שם, תגיד למשל \"בוקר טוב שם\". כך היא לא תתעורר כשאומרים בוקר טוב סתם למישהו בבית.", 17f))
+        val nameBox = EditText(this).apply {
+            hint = "למשל: דני"
+            textSize = 22f
+            setText(Prefs.assistantName(this@MainActivity))
+            inputType = InputType.TYPE_CLASS_TEXT
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
+        col.addView(nameBox)
+        col.addView(bigButton("שמור שם") {
+            Prefs.setAssistantName(this, nameBox.text.toString())
+            if (ListeningService.running) { ListeningService.stop(this); ListeningService.start(this) }
+            refresh()
+        })
+
+        col.addView(text("מה אפשר להגיד", 22f, true))
+        col.addView(text(
+            "• תתקשר לדני\n• תשלח לדני אני בדרך\n• נווט הביתה\n• נגן מוזיקה\n• מה השעה\n" +
+                "• תעיר אותי בשבע וחצי\n• תזכיר לי בעוד עשר דקות\n• גלול למטה\n• חזור\n• בית\n" +
+                "• פתח יוטיוב\n• ענה לשיחה / דחה שיחה\n• ביטול (עוצר בכל רגע)", 19f
+        ))
+        col.addView(text("הערה: אפליקציות של בנקים, תשלומים, סיסמאות ודואר אלקטרוני חסומות. האפליקציה לא נוגעת בהן.", 17f))
+
+        setContentView(ScrollView(this).apply { addView(col) })
+    }
+
+    private fun missingPermissions() =
+        permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+
+    private fun accessibilityOn(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val me = ComponentName(this, ControlAccessibilityService::class.java).flattenToString()
+        return enabled.split(":").any { it.equals(me, true) }
+    }
+
+    private fun notificationsOn() =
+        NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+
+    private fun batteryOk() =
+        (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+
+    private fun row(done: Boolean, title: String, buttonLabel: String, action: () -> Unit) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        box.addView(text((if (done) "✔ " else "✘ ") + title, 20f, true,
+            if (done) Color.parseColor("#2E7D32") else Color.parseColor("#C62828")))
+        if (!done) box.addView(bigButton(buttonLabel) { action() })
+        checks.addView(box)
+    }
+
+    private fun refresh() {
+        checks.removeAllViews()
+        row(missingPermissions().isEmpty(), "הרשאות (מיקרופון, אנשי קשר, שיחות)", "אשר הרשאות") {
+            askPermissions.launch(permissions)
+        }
+        row(Settings.canDrawOverlays(this), "אישור לפתוח אפליקציות מהרקע", "אשר") {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        }
+        row(accessibilityOn(), "שליטה במסך (נגישות)", "פתח הגדרות נגישות") {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        row(notificationsOn(), "הקראת הודעות וואטסאפ", "פתח הגדרות") {
+            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+        row(batteryOk(), "שלא תיפסק ברקע (סוללה)", "אשר") {
+            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        }
+        checks.addView(text(
+            "אם בהגדרות הנגישות או ההודעות הכפתור אפור: נכנסים להגדרות, אפליקציות, בוקר טוב, שלוש נקודות למעלה, ובוחרים \"אפשר הגדרות מוגבלות\".",
+            16f
+        ))
+
+        val on = ListeningService.running
+        val phrase = (Prefs.wakeWord(this) + " " + Prefs.assistantName(this)).trim()
+        status.text = if (on) "מקשיבה. אמור: $phrase" else "כבויה"
+        status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
+        mainButton.text = if (on) "כבה" else "הפעל"
+    }
+
+    private fun toggle() {
+        if (ListeningService.running) {
+            ListeningService.stop(this)
+            mainButton.postDelayed({ refresh() }, 400)
+            return
+        }
+        val missing = missingPermissions()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            askPermissions.launch(permissions)
+            return
+        }
+        ListeningService.start(this)
+        mainButton.postDelayed({ refresh() }, 600)
+        if (missing.isNotEmpty()) {
+            // מתחילים להקשיב גם בלי כל ההרשאות, אבל חלק מהפעולות לא יעבדו
+            status.text = "מקשיבה, אבל חסרות הרשאות"
+        }
+    }
+}
