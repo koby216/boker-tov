@@ -439,6 +439,7 @@ class Actions(private val ctx: Context) {
     private val aliases = mapOf(
         "וואטסאפ" to "whatsapp", "ווטסאפ" to "whatsapp", "וואצאפ" to "whatsapp",
         "וייז" to "waze", "יוטיוב" to "youtube", "ספוטיפיי" to "spotify",
+        "יוטיוב מיוזיק" to "youtube.music", "יוטיוב מוזיקה" to "youtube.music", "יוטיוב מיוזיק" to "youtube.music",
         "מצלמה" to "camera", "גלריה" to "gallery", "תמונות" to "photos",
         "שעון" to "clock", "מפות" to "maps", "טלפון" to "dialer", "חייגן" to "dialer",
         "אנשי קשר" to "contacts", "מחשבון" to "calculator", "יומן" to "calendar"
@@ -453,7 +454,8 @@ class Actions(private val ctx: Context) {
         }
         val s = Text.norm(name)
         val alias = aliases[s]
-        val matches = if (alias != null) apps.filter { it.second.lowercase().contains(alias) }
+        // כשכמה אפליקציות מתאימות (למשל יוטיוב ויוטיוב מיוזיק), מעדיפים את הראשית: זו עם שם החבילה הקצר
+        val matches = if (alias != null) apps.filter { it.second.lowercase().contains(alias) }.sortedBy { it.second.length }
         else apps.filter {
             val l = Text.norm(it.first)
             l.length >= 2 && (l.contains(s) || s.contains(l))
