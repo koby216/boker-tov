@@ -155,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         instance = this
         buildUi()
         if (!ListeningService.running) Earcon.restoreIfStuck(this)
+        DrivingDetector.register(this)
         if (savedInstanceState == null) routeIntent(intent)
     }
 

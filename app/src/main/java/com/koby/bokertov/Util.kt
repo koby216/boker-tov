@@ -260,6 +260,7 @@ object Perms {
         add(android.Manifest.permission.CALL_PHONE)
         add(android.Manifest.permission.ANSWER_PHONE_CALLS)
         add(android.Manifest.permission.READ_PHONE_STATE)
+        if (android.os.Build.VERSION.SDK_INT >= 29) add(android.Manifest.permission.ACTIVITY_RECOGNITION)
         if (android.os.Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
         if (android.os.Build.VERSION.SDK_INT >= 31) add(android.Manifest.permission.BLUETOOTH_CONNECT)
     }.toTypedArray()

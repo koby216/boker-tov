@@ -49,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        DrivingDetector.register(this)
         refresh()
         ticker.post(tick)
     }
@@ -204,6 +205,7 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle("איזה מהם הרכב שלך?")
             .setItems(names) { _, i ->
                 Prefs.setCar(this, devices[i].address, names[i])
+                DrivingDetector.register(this)
                 refresh()
             }
             .show()

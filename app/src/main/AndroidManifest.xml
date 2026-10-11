@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
 
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
@@ -55,6 +57,14 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="false" />
+
+        <receiver
+            android:name=".DrivingReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".BluetoothReceiver"
