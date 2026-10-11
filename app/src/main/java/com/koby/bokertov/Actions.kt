@@ -119,7 +119,8 @@ class Actions(private val ctx: Context) {
         is Cmd.Next -> { mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT); Outcome.Silent }
         is Cmd.Prev -> { mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS); Outcome.Silent }
         is Cmd.Timer -> timer(cmd.seconds, cmd.label)
-        is Cmd.Alarm -> alarm(cmd.hour, cmd.minute)
+        is Cmd.Alarm -> alarm(cmd.hour, cmd.minute, cmd.label)
+        is Cmd.Remind -> remind(cmd.what)
         is Cmd.TellTime -> Outcome.Say(timeText())
         is Cmd.TellDate -> Outcome.Say(dateText())
         is Cmd.TorchOn -> torch(true)
@@ -387,6 +388,24 @@ class Actions(private val ctx: Context) {
         }
     }
 
+    /** "תזכירי לי": שואלת מה להזכיר ומתי, ומגדירה את התזכורת. */
+    private fun remind(what: String): Outcome {
+        if (what.isBlank()) return Outcome.AskText("מה להזכיר לך?") { remind(it) }
+        return Outcome.AskText("מתי להזכיר לך?") { whenText -> setReminder(what, whenText, retry = true) }
+    }
+
+    private fun setReminder(what: String, whenText: String, retry: Boolean): Outcome {
+        val t = Text.norm(whenText)
+        Parser.duration(t)?.let { (sec, _) -> return timer(sec, what) }
+        Parser.clockTime(t)?.let { (h, m) -> return alarm(h, m, what) }
+        if (retry) {
+            return Outcome.AskText("לא הבנתי מתי. אמור למשל: בעוד עשר דקות, או בשעה שבע בערב.") {
+                setReminder(what, it, retry = false)
+            }
+        }
+        return Outcome.Say("לא הצלחתי להבין מתי. אפשר לנסות שוב.")
+    }
+
     private fun timer(seconds: Int, label: String): Outcome {
         val i = Intent(AlarmClock.ACTION_SET_TIMER).apply {
             putExtra(AlarmClock.EXTRA_LENGTH, seconds)
@@ -399,19 +418,22 @@ class Actions(private val ctx: Context) {
             seconds % 3600 == 0 -> "${seconds / 3600} שעות"
             else -> "$mins דקות"
         }
-        return Outcome.Say("בסדר, בעוד $spoken") {
+        val said = if (label.isNotBlank()) "בסדר, אזכיר לך $label בעוד $spoken" else "בסדר, בעוד $spoken"
+        return Outcome.Say(said) {
             if (!launch(i)) Unit
         }
     }
 
-    private fun alarm(h: Int, m: Int): Outcome {
+    private fun alarm(h: Int, m: Int, label: String = ""): Outcome {
         val i = Intent(AlarmClock.ACTION_SET_ALARM).apply {
             putExtra(AlarmClock.EXTRA_HOUR, h)
             putExtra(AlarmClock.EXTRA_MINUTES, m)
             putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+            if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label)
         }
         val mm = if (m == 0) "בדיוק" else "ו$m דקות"
-        return Outcome.Say("מעירה אותך בשעה $h $mm") { launch(i) }
+        val said = if (label.isNotBlank()) "בסדר, אזכיר לך $label בשעה $h $mm" else "מעירה אותך בשעה $h $mm"
+        return Outcome.Say(said) { launch(i) }
     }
 
     private fun timeText(): String {

@@ -29,7 +29,8 @@ sealed class Cmd {
     data class Navigate(val dest: String) : Cmd()
     data class PlayMusic(val query: String) : Cmd()
     data class Timer(val seconds: Int, val label: String) : Cmd()
-    data class Alarm(val hour: Int, val minute: Int) : Cmd()
+    data class Alarm(val hour: Int, val minute: Int, val label: String = "") : Cmd()
+    data class Remind(val what: String) : Cmd()
     data class OpenApp(val name: String) : Cmd()
     data class Click(val text: String) : Cmd()
     data class Type(val text: String) : Cmd()
@@ -104,6 +105,47 @@ object Parser {
         return h to min
     }
 
+    private val hourWords = mapOf(
+        "אחת" to 1, "שתיים" to 2, "שתים" to 2, "שלוש" to 3, "ארבע" to 4, "חמש" to 5, "שש" to 6,
+        "שבע" to 7, "שמונה" to 8, "תשע" to 9, "עשר" to 10
+    )
+
+    /** שעה בשעון: ספרות ("7 30"), או מילים ("בשבע וחצי", "בשעה חמש", "בשמונה בערב"). */
+    fun clockTime(t: String): Pair<Int, Int>? {
+        alarmTime(t)?.let { return it }
+        val tokens = t.split(" ")
+        val evening = t.contains("בערב") || t.contains("אחר הצהריים") || t.contains("אחרי הצהריים") || t.contains("בלילה")
+        for (i in tokens.indices) {
+            val tok = tokens[i]
+            val word = when {
+                tok.startsWith("ב") && tok.length > 1 && hourWords.containsKey(tok.substring(1)) -> tok.substring(1)
+                i > 0 && tokens[i - 1] == "בשעה" && hourWords.containsKey(tok) -> tok
+                else -> continue
+            }
+            var h = hourWords[word] ?: continue
+            val next = tokens.getOrNull(i + 1)
+            val min = when (next) {
+                "וחצי" -> 30
+                "ורבע" -> 15
+                else -> 0
+            }
+            if (evening && h < 12) h += 12
+            return h to min
+        }
+        return null
+    }
+
+    /** מוריד מהמשפט את מילות הזמן, כדי שיישאר רק מה להזכיר. */
+    fun removeTimeWords(t: String): String {
+        val drop = setOf("בשעה", "וחצי", "ורבע", "בערב", "בבוקר", "בלילה", "אחר", "אחרי", "הצהריים", "בצהריים")
+        val kept = t.split(" ").filter { tok ->
+            tok.isNotBlank() && tok !in drop && tok.toIntOrNull() == null &&
+                !hourWords.containsKey(tok) &&
+                !(tok.startsWith("ב") && tok.length > 1 && hourWords.containsKey(tok.substring(1)))
+        }
+        return kept.joinToString(" ")
+    }
+
     private fun stripLead(rest: String, vararg words: String): String {
         var r = rest.trim()
         var changed = true
@@ -171,6 +213,14 @@ object Parser {
         if (has("תעיר", "תעירי", "מעורר", "להעיר")) {
             duration(t)?.takeIf { has("בעוד") }?.let { (sec, _) -> return Cmd.Timer(sec, "") }
             alarmTime(t)?.let { (h, m) -> return Cmd.Alarm(h, m) }
+        }
+
+        verb("תזכיר לי", "תזכירי לי", "הזכר לי", "הזכירי לי")?.let { v ->
+            val rest = t.removePrefix(v).trim()
+            clockTime(rest)?.let { (h, m) ->
+                return Cmd.Alarm(h, m, stripLead(removeTimeWords(rest), "ב", "את"))
+            }
+            return Cmd.Remind(stripLead(rest, "ב", "את"))
         }
 
         if (has("מה השעה", "כמה השעה", "איזה שעה")) return Cmd.TellTime
