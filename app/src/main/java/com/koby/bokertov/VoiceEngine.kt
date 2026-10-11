@@ -347,6 +347,7 @@ class VoiceEngine(
     }
 
     private var blankCount = 0
+    private var ignoredCount = 0
 
     private fun handleResults(list: List<String>) {
         // רעש רקע: תוצאה ריקה, או מילה בודדת שלא מובנת בשלב הבקשה. מתעלמים בשקט.
@@ -376,7 +377,21 @@ class VoiceEngine(
             }
             St.COMMAND -> {
                 val cmd = list.firstNotNullOfOrNull { Parser.parse(it) }
-                if (cmd == null) noInput(heard = true) else { attempts = 0; runCommand(cmd) }
+                if (cmd == null) {
+                    if (quietFirst) {
+                        // אחרי "אני מקשיבה": דיבור רקע שלא מובן כבקשה מתקבל בשקט. אחרי כמה ניסיונות חוזרים להמתין.
+                        ignoredCount++
+                        if (ignoredCount >= 6) { ignoredCount = 0; toWake() }
+                        else main.postDelayed({ listen() }, 100)
+                    } else {
+                        noInput(heard = true)
+                    }
+                } else {
+                    attempts = 0
+                    ignoredCount = 0
+                    quietFirst = false
+                    runCommand(cmd)
+                }
             }
             St.CONFIRM -> {
                 val ask = pendingAsk
