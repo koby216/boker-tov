@@ -93,9 +93,9 @@ class MainActivity : AppCompatActivity() {
             "אישור לפתוח אפליקציות", "פתח הגדרות", null
         ) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) },
         Step(
-            7, { android.os.Build.VERSION.SDK_INT < 33 || Prefs.restrictedSeen(this) || accessibilityOn() },
-            "לפני שנמשיך, צריך לבטל חסימה של הטלפון. לחץ על הכפתור הכחול. בדף שנפתח, לחץ על שלוש הנקודות למעלה ובחר: אפשר הגדרות מוגבלות. אם אין שלוש נקודות, חזור אחורה, זה בסדר.",
-            "מבטלים חסימה של הטלפון", "פתח את דף האפליקציה", null
+            7, { android.os.Build.VERSION.SDK_INT < 33 || !Prefs.accTried(this) || Prefs.restrictedSeen(this) || accessibilityOn() },
+            "הטלפון חסם את ההפעלה. זה בסדר, צריך לאשר את זה פעם אחת. לחץ על הכפתור הכחול. בדף שנפתח, לחץ על שלוש הנקודות למעלה ובחר: אפשר הגדרות מוגבלות. אחר כך חזור לכאן ונדליק את הנגישות.",
+            "מאשרים את ההפעלה", "פתח את דף האפליקציה", null
         ) {
             Prefs.setRestrictedSeen(this, true)
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
@@ -104,7 +104,10 @@ class MainActivity : AppCompatActivity() {
             3, { accessibilityOn() },
             "כדי שאוכל ללחוץ במקומך, צריך להפעיל נגישות. לחץ על הכפתור הכחול, בחר בוקר טוב, הדלק את המתג, ולחץ אישור.",
             "צריך להפעיל נגישות", "פתח נגישות", restrictedTip
-        ) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+        ) {
+            Prefs.setAccTried(this, true)
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        },
         Step(
             4, { notificationsOn() },
             "כדי שאקריא הודעות וואטסאפ, צריך לאשר גישה להתראות. לחץ על הכפתור הכחול, בחר בוקר טוב, והדלק את המתג.",

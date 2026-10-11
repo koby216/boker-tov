@@ -49,6 +49,9 @@ object Prefs {
     /** המשתמש כבר ראה את ההדרכה על "הגדרות מוגבלות" / על הקול של גוגל: לא מציקים שוב. */
     fun restrictedSeen(ctx: Context): Boolean = sp(ctx).getBoolean("restricted_seen", false)
     fun setRestrictedSeen(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("restricted_seen", v).apply()
+    /** המשתמש כבר ניסה להפעיל נגישות (רק אחרי זה מופיעה האפשרות "אפשר הגדרות מוגבלות"). */
+    fun accTried(ctx: Context): Boolean = sp(ctx).getBoolean("acc_tried", false)
+    fun setAccTried(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("acc_tried", v).apply()
     fun ttsSeen(ctx: Context): Boolean = sp(ctx).getBoolean("tts_seen", false)
     fun setTtsSeen(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("tts_seen", v).apply()
 
