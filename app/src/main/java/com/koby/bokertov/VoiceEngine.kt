@@ -309,7 +309,7 @@ class VoiceEngine(
         main.postDelayed({ listen() }, 100)
     }
 
-    private val idleTimer = Runnable {
+    private val idleTimer: Runnable = Runnable {
         val inCarNow = actions.carConnected()
         DebugLog.add("טיימר כיבוי: מצב=${state.name}, מדברת=$speaking, ברכב=$inCarNow")
         if (running && !speaking && state == St.WAKE) {
