@@ -65,12 +65,12 @@ class MessageListener : NotificationListenerService() {
             return
         }
 
-        // וואטסאפ מעדכנת את אותה התראה כמה פעמים. מדווחים פעם אחת.
-        val key = "$title|$text"
-        val now = System.currentTimeMillis()
-        if (key == lastKey && now - lastAt < 8000) return
-        lastKey = key
-        lastAt = now
+        // וואטסאפ מציגה שוב את אותה הודעה (למשל אחרי מענה). מדווחים עליה פעם אחת בלבד.
+        if (MessageStore.isDuplicate(title, text)) {
+            DebugLog.add("התעלמתי מהודעה כפולה מ$title")
+            return
+        }
+        MessageStore.markSeen(title, text)
 
         val replyAction = n.actions?.firstOrNull { a -> a.remoteInputs?.isNotEmpty() == true }
         MessageStore.add(title, text, replyAction)

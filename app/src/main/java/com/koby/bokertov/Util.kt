@@ -133,6 +133,20 @@ object MessageStore {
         if (action != null) actions[sender] = action
     }
 
+    private val seen = HashMap<String, Pair<String, Long>>()
+
+    /** הודעה זהה מאותו שולח שכבר דווחה ב-10 הדקות האחרונות (וואטסאפ מציגה אותה שוב אחרי מענה). */
+    @Synchronized
+    fun isDuplicate(sender: String, text: String): Boolean {
+        val p = seen[sender] ?: return false
+        return p.first == text && System.currentTimeMillis() - p.second < 10 * 60 * 1000L
+    }
+
+    @Synchronized
+    fun markSeen(sender: String, text: String) {
+        seen[sender] = text to System.currentTimeMillis()
+    }
+
     private var echoSender = ""
     private var echoText = ""
     private var echoAt = 0L
