@@ -256,6 +256,7 @@ class Actions(private val ctx: Context) {
         Outcome.Say("") { openAndSend(c, message) }
 
     private fun openAndSend(c: Contact, message: String) {
+        MessageStore.markSent(c.name, message)
         val i = Intent(
             Intent.ACTION_VIEW,
             Uri.parse("https://wa.me/${waNumber(c.number)}?text=${Uri.encode(message)}")
@@ -280,6 +281,7 @@ class Actions(private val ctx: Context) {
     })
 
     private fun replyTo(sender: String, message: String): Outcome {
+        MessageStore.markSent(sender, message)
         val action = MessageStore.replyAction(sender)
         return Outcome.Say("") {
             if (action != null && MessageStore.sendReply(ctx, action, message)) {

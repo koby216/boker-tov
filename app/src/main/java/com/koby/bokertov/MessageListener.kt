@@ -55,6 +55,12 @@ class MessageListener : NotificationListenerService() {
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
         if (title.isBlank() || text.isBlank()) return
 
+        // התראה שהיא הד של תשובה ששלחנו: לא מדווחים עליה כהודעה חדשה
+        if (MessageStore.isOwnEcho(title, text)) {
+            DebugLog.add("התעלמתי מהד של התשובה שלי")
+            return
+        }
+
         // וואטסאפ מעדכנת את אותה התראה כמה פעמים. מדווחים פעם אחת.
         val key = "$title|$text"
         val now = System.currentTimeMillis()

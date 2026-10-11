@@ -130,6 +130,26 @@ object MessageStore {
         if (action != null) actions[sender] = action
     }
 
+    private var echoSender = ""
+    private var echoText = ""
+    private var echoAt = 0L
+
+    /** רושמים מה שלחנו, כדי להתעלם מההתראה ש-וואטסאפ מציגה כהד של ההודעה שלנו. */
+    @Synchronized
+    fun markSent(sender: String, text: String) {
+        echoSender = sender
+        echoText = text
+        echoAt = System.currentTimeMillis()
+    }
+
+    @Synchronized
+    fun isOwnEcho(sender: String, text: String): Boolean {
+        if (echoText.isEmpty()) return false
+        val age = System.currentTimeMillis() - echoAt
+        val same = sender.equals(echoSender, true) || sender.contains(echoSender) || echoSender.contains(sender)
+        return same && (age < 6000 || (age < 120000 && text.contains(echoText)))
+    }
+
     @Synchronized
     fun replyAction(sender: String): android.app.Notification.Action? = actions[sender]
 
