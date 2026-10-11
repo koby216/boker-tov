@@ -301,19 +301,23 @@ class VoiceEngine(
     }
 
     private val idleTimer = Runnable {
-        if (running && !speaking && state == St.WAKE) goIdle()
+        if (running && !speaking && state == St.WAKE) goIdle(announce = true)
     }
 
     private var engaged = false
 
     /** סיימנו: נסגרים ושותקים. מפעילים שוב מהאייקון, מההתראה או בחיבור לרכב. */
-    private fun goIdle() {
+    private fun goIdle(announce: Boolean = false) {
         if (!running) return
         DebugLog.add("סיימתי, נסגרת")
         main.removeCallbacks(watchdog)
         main.removeCallbacks(partialTrigger)
         main.removeCallbacks(wakeTrigger)
-        onIdle()
+        if (announce) {
+            speak("נסגרתי עקב חוסר פעילות. להפעלה לחץ על הכפתור הפעל") { onIdle() }
+        } else {
+            onIdle()
+        }
     }
 
     private fun handleResults(list: List<String>) {
