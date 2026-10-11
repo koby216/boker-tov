@@ -184,8 +184,8 @@ object MessageStore {
         val a = Text.norm(sender)
         val b = Text.norm(echoSender)
         val same = a.isNotEmpty() && b.isNotEmpty() && (a == b || a.contains(b) || b.contains(a))
-        // בחצי הדקה אחרי שענינו: כל התראה מאותה שיחה היא הד (וואטסאפ מציגה מחדש את השיחה, בטקסט משתנה)
-        return same && (age < 30000 || Text.norm(text).contains(Text.norm(echoText)))
+        // אחרי הרגעים הראשונים: רק התראה שמכילה את הטקסט ששלחנו היא הד. תשובה אמיתית מהצד השני תוקרא.
+        return same && Text.norm(text).contains(Text.norm(echoText))
     }
 
     @Synchronized
