@@ -41,6 +41,14 @@ object DrivingDetector {
                 ActivityTransition.Builder()
                     .setActivityType(DetectedActivity.IN_VEHICLE)
                     .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+                    .build(),
+                ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.IN_VEHICLE)
+                    .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_EXIT)
+                    .build(),
+                ActivityTransition.Builder()
+                    .setActivityType(DetectedActivity.STILL)
+                    .setActivityTransition(ActivityTransition.ACTIVITY_TRANSITION_ENTER)
                     .build()
             )
             ActivityRecognition.getClient(ctx)
@@ -62,25 +70,40 @@ class DrivingReceiver : BroadcastReceiver() {
         }
         if (!ActivityTransitionResult.hasResult(intent)) return
         val result = ActivityTransitionResult.extractResult(intent) ?: return
-        val entered = result.transitionEvents.any {
+        val events = result.transitionEvents
+        val started = events.any {
             it.activityType == DetectedActivity.IN_VEHICLE &&
                 it.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER
         }
-        if (!entered) return
-        onDriving(ctx)
+        val stopped = events.any {
+            (it.activityType == DetectedActivity.IN_VEHICLE &&
+                it.transitionType == ActivityTransition.ACTIVITY_TRANSITION_EXIT) ||
+                (it.activityType == DetectedActivity.STILL &&
+                    it.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER)
+        }
+        if (started) onDrivingStart(ctx)
+        if (stopped) onStopped(ctx)
     }
 
-    private fun onDriving(ctx: Context) {
+    /** התחילה נסיעה: רק זוכרים שצריך להודיע, ולא מדברים בנסיעה. */
+    private fun onDrivingStart(ctx: Context) {
         if (Prefs.carAddress(ctx).isEmpty()) return
         val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+        val pending = !Actions(ctx).carConnected()
+        sp.edit().putBoolean("car_alert_pending", pending).apply()
+        DebugLog.add(if (pending) "זוהתה נסיעה, לא מחוברת לרכב. אודיע כשיעצרו" else "זוהתה נסיעה, מחוברת לרכב")
+    }
+
+    /** הרכב עצר: עכשיו אפשר להודיע. */
+    private fun onStopped(ctx: Context) {
+        val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+        if (!sp.getBoolean("car_alert_pending", false)) return
+        sp.edit().putBoolean("car_alert_pending", false).apply()
+        if (Prefs.carAddress(ctx).isEmpty() || Actions(ctx).carConnected()) return
         val now = System.currentTimeMillis()
         if (now - sp.getLong("drive_alert_at", 0L) < 30 * 60 * 1000L) return   // לא יותר מפעם ב-30 דקות
-        if (Actions(ctx).carConnected()) {
-            DebugLog.add("זוהתה נסיעה, והטלפון מחובר לרכב")
-            return
-        }
         sp.edit().putLong("drive_alert_at", now).apply()
-        DebugLog.add("זוהתה נסיעה והטלפון לא מחובר לרכב")
+        DebugLog.add("הרכב עצר והטלפון לא מחובר לרכב")
 
         // נותנים לקול זמן להישמע לפני שהתהליך נסגר
         val pr = goAsync()
@@ -97,7 +120,7 @@ class DrivingReceiver : BroadcastReceiver() {
         val n = NotificationCompat.Builder(ctx, "drive")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle("הטלפון לא מחובר לרכב")
-            .setContentText("כשעומדים: לחץ כאן כדי לפתוח את הבלוטות'")
+            .setContentText("הרכב עצר. לחץ כאן כדי לפתוח את הבלוטות' ולהתחבר")
             .setContentIntent(open)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
