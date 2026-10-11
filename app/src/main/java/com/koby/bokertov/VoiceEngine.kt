@@ -198,7 +198,8 @@ class VoiceEngine(
     private val restoreSounds = Runnable { Earcon.restore(ctx) }
 
     /** משאירים את הצלילים מושתקים רק כשממתינים ל"בוקר טוב" והיא עומדת להיסגר לבד. */
-    private fun holdMute(): Boolean = state == St.WAKE && !Prefs.keepListening(ctx)
+    private fun holdMute(): Boolean =
+        (state == St.WAKE || (state == St.COMMAND && quietFirst)) && !Prefs.keepListening(ctx)
 
     private var wakeDelay = 150L
 
