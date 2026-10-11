@@ -140,11 +140,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun missingPermissions() =
         permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
 
-    private fun accessibilityOn(): Boolean {
-        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
-        val me = ComponentName(this, ControlAccessibilityService::class.java).flattenToString()
-        return enabled.split(":").any { it.equals(me, true) }
-    }
+    private fun accessibilityOn(): Boolean = Perms.accessibilityOn(this)
 
     private fun notificationsOn() =
         NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)

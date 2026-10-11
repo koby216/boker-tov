@@ -258,6 +258,19 @@ object UiState {
 }
 
 object Perms {
+    /**
+     * האם שירות הנגישות פעיל. בודקים גם אם הוא מחובר עכשיו, וגם ברשימה של הטלפון
+     * (שבה השם יכול להיות מקוצר, כמו ב-LG), ומשווים אחרי פענוח.
+     */
+    fun accessibilityOn(ctx: Context): Boolean {
+        if (ControlAccessibilityService.instance != null) return true
+        val enabled = android.provider.Settings.Secure.getString(
+            ctx.contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        val me = android.content.ComponentName(ctx, ControlAccessibilityService::class.java)
+        return enabled.split(":").any { android.content.ComponentName.unflattenFromString(it) == me }
+    }
+
     fun all(): Array<String> = buildList {
         add(android.Manifest.permission.RECORD_AUDIO)
         add(android.Manifest.permission.READ_CONTACTS)
