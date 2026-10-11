@@ -244,3 +244,23 @@ object Earcon {
         sp(ctx).edit().putBoolean("earcon_muted", false).apply()
     }
 }
+
+/** מה הדמות עושה עכשיו. המנוע מעדכן, והמסך הראשי מציג. */
+enum class Face { OFF, LISTENING, SPEAKING, THINKING }
+
+object UiState {
+    @Volatile var face: Face = Face.OFF
+    @Volatile var caption: String = ""
+}
+
+object Perms {
+    fun all(): Array<String> = buildList {
+        add(android.Manifest.permission.RECORD_AUDIO)
+        add(android.Manifest.permission.READ_CONTACTS)
+        add(android.Manifest.permission.CALL_PHONE)
+        add(android.Manifest.permission.ANSWER_PHONE_CALLS)
+        add(android.Manifest.permission.READ_PHONE_STATE)
+        if (android.os.Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
+        if (android.os.Build.VERSION.SDK_INT >= 31) add(android.Manifest.permission.BLUETOOTH_CONNECT)
+    }.toTypedArray()
+}

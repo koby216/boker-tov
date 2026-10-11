@@ -1,63 +1,42 @@
 package com.koby.bokertov
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
-import android.net.Uri
-import android.bluetooth.BluetoothManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.speech.tts.TextToSpeech
-import android.os.PowerManager
-import android.provider.Settings
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
-import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
+/** הדף הראשי: הדמות במרכז, משפט אחד, וכפתור אחד. */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var status: TextView
+    private lateinit var character: CharacterView
+    private lateinit var caption: TextView
     private lateinit var mainButton: Button
-    private lateinit var checks: LinearLayout
-    private lateinit var debugView: TextView
-    private lateinit var carView: TextView
-    private var testTts: TextToSpeech? = null
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
-            if (debugView.visibility == View.VISIBLE) debugView.text = DebugLog.text()
-            updateStatus()
-            ticker.postDelayed(this, 1500)
+            updateScreen()
+            ticker.postDelayed(this, 300)
         }
     }
 
-    private val permissions: Array<String> = buildList {
-        add(Manifest.permission.RECORD_AUDIO)
-        add(Manifest.permission.READ_CONTACTS)
-        add(Manifest.permission.CALL_PHONE)
-        add(Manifest.permission.ANSWER_PHONE_CALLS)
-        add(Manifest.permission.READ_PHONE_STATE)
-        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-        if (Build.VERSION.SDK_INT >= 31) add(Manifest.permission.BLUETOOTH_CONNECT)
-    }.toTypedArray()
+    private val permissions: Array<String> = Perms.all()
 
     private val askPermissions =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
-            refresh()
             // אם קיבלנו את המיקרופון, מתחילים להקשיב מיד
             if (hasMic() && !ListeningService.running) startListening()
+            updateScreen()
         }
 
     private fun hasMic() =
@@ -70,7 +49,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun startListening() {
         ListeningService.start(this, announce = true)
-        mainButton.postDelayed({ refresh() }, 700)
+        mainButton.postDelayed({ updateScreen() }, 700)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,12 +63,12 @@ class MainActivity : AppCompatActivity() {
     /** מחליטה מה לעשות לפי הסיבה שהמסך נפתח: כיבוי, הודעה נכנסת, או פתיחה רגילה. */
     private fun routeIntent(i: Intent) {
         when {
-            i.getBooleanExtra(EXTRA_IDLE, false) -> refresh()
+            i.getBooleanExtra(EXTRA_IDLE, false) -> updateScreen()
             i.hasExtra(EXTRA_SENDER) && hasMic() -> {
                 ListeningService.start(
                     this, sender = i.getStringExtra(EXTRA_SENDER), text = i.getStringExtra(EXTRA_TEXT)
                 )
-                mainButton.postDelayed({ refresh() }, 700)
+                mainButton.postDelayed({ updateScreen() }, 700)
             }
             else -> autoStart()
         }
@@ -112,7 +91,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        refresh()
+        updateScreen()
         ticker.post(tick)
     }
 
@@ -128,203 +107,83 @@ class MainActivity : AppCompatActivity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    private fun text(s: String, size: Float, bold: Boolean = false, color: Int = Color.parseColor("#222222")): TextView =
-        TextView(this).apply {
-            text = s
-            textSize = size
-            setTextColor(color)
-            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(0, dp(6), 0, dp(6))
-        }
-
-    private fun bigButton(label: String, onClick: () -> Unit): Button = Button(this).apply {
-        text = label
-        textSize = 20f
-        isAllCaps = false
-        setOnClickListener { onClick() }
-    }
-
     private fun buildUi() {
-        val col = LinearLayout(this).apply {
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(24), dp(20), dp(40))
+            setBackgroundColor(Color.parseColor("#FFFBEF"))
+            setPadding(dp(20), dp(16), dp(20), dp(28))
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
-        col.addView(text("בוקר טוב", 34f, true, Color.parseColor("#B8860B")))
-        val versionView = text("גרסה ${BuildConfig.BUILD_ID}", 14f, false, Color.parseColor("#777777"))
-        col.addView(versionView)
-        // יומן פנימי מוסתר: לחיצה ארוכה על שורת הגרסה מציגה או מסתירה אותו (לאבחון תקלות בלבד)
-        debugView = text(DebugLog.text(), 15f).apply { visibility = View.GONE }
-        col.addView(debugView)
-        versionView.setOnLongClickListener {
-            debugView.visibility = if (debugView.visibility == View.GONE) View.VISIBLE else View.GONE
-            debugView.text = DebugLog.text()
-            true
+
+        // שורה עליונה: שם וגלגל שיניים
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        status = text("", 22f, true)
-        col.addView(status)
+        top.addView(TextView(this).apply {
+            text = "בוקר טוב"
+            textSize = 30f
+            setTextColor(Color.parseColor("#B8860B"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(TextView(this).apply {
+            text = "⚙"
+            textSize = 36f
+            setTextColor(Color.parseColor("#555555"))
+            contentDescription = "הגדרות"
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        })
+        root.addView(top, LinearLayout.LayoutParams(-1, -2))
 
-        mainButton = bigButton("הפעל") { toggle() }.apply { textSize = 28f }
-        col.addView(mainButton, LinearLayout.LayoutParams(-1, dp(90)))
+        // הדמות במרכז
+        character = CharacterView(this)
+        root.addView(character, LinearLayout.LayoutParams(-1, 0, 1f))
 
-        col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
-        col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
-
-        col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
-        checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(checks)
-
-        val keep = android.widget.Switch(this).apply {
-            text = "להישאר מקשיבה ל\"בוקר טוב\" כל הזמן"
-            textSize = 19f
-            isChecked = Prefs.keepListening(this@MainActivity)
-            setPadding(0, dp(10), 0, dp(10))
-            setOnCheckedChangeListener { _, on ->
-                Prefs.setKeepListening(this@MainActivity, on)
-                updateStatus()
-            }
+        // משפט אחד
+        caption = TextView(this).apply {
+            textSize = 26f
+            setTextColor(Color.parseColor("#222222"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = Gravity.CENTER
+            minLines = 2
         }
-        col.addView(keep)
-        col.addView(text("כבוי (מומלץ): אחרי משימה היא ממשיכה להקשיב 2 דקות, ואז נכבית ושותקת. מפעילים שוב בלחיצה על הפעל, על האייקון או על ההתראה. דולק: היא מקשיבה כל הזמן, אבל אפשר לשמוע צלילים.", 16f))
+        root.addView(caption, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
 
-        col.addView(text("הרכב שלי (בלוטות')", 20f, true))
-        carView = text("", 18f)
-        col.addView(carView)
-        col.addView(bigButton("בחר רכב") { chooseCar() })
-        col.addView(text("כשהטלפון מתחבר לרכב שבחרת, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". קודם חבר את הטלפון לרכב פעם אחת בהגדרות הבלוטות'.", 16f))
+        // כפתור אחד
+        mainButton = Button(this).apply {
+            textSize = 30f
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            setOnClickListener { toggle() }
+        }
+        root.addView(mainButton, LinearLayout.LayoutParams(-1, dp(96)))
 
-        col.addView(text("מה אפשר להגיד", 22f, true))
-        col.addView(text(
-            "• תתקשר לדני\n• תשלח לדני אני בדרך\n• נווט הביתה\n• נגן מוזיקה\n• מה השעה\n" +
-                "• תעיר אותי בשבע וחצי\n• תזכיר לי בעוד עשר דקות\n• גלול למטה\n• חזור\n• בית\n" +
-                "• פתח יוטיוב\n• ענה לשיחה / דחה שיחה\n• ביטול (עוצר בכל רגע)", 19f
-        ))
-        col.addView(text("הערה: אפליקציות של בנקים, תשלומים, סיסמאות ודואר אלקטרוני חסומות. האפליקציה לא נוגעת בהן.", 17f))
-
-        setContentView(ScrollView(this).apply { addView(col) })
+        setContentView(root)
     }
 
-    private fun missingPermissions() =
-        permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-
-    private fun accessibilityOn(): Boolean {
-        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
-        val me = ComponentName(this, ControlAccessibilityService::class.java).flattenToString()
-        return enabled.split(":").any { it.equals(me, true) }
-    }
-
-    private fun notificationsOn() =
-        NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
-
-    private fun batteryOk() =
-        (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
-
-    private fun row(done: Boolean, title: String, buttonLabel: String, action: () -> Unit) {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(8), 0, dp(8))
-        }
-        box.addView(text((if (done) "✔ " else "✘ ") + title, 20f, true,
-            if (done) Color.parseColor("#2E7D32") else Color.parseColor("#C62828")))
-        if (!done) box.addView(bigButton(buttonLabel) { action() })
-        checks.addView(box)
-    }
-
-    private fun refresh() {
-        checks.removeAllViews()
-        row(missingPermissions().isEmpty(), "הרשאות (מיקרופון, אנשי קשר, שיחות)", "אשר הרשאות") {
-            askPermissions.launch(permissions)
-        }
-        row(Settings.canDrawOverlays(this), "אישור לפתוח אפליקציות מהרקע", "אשר") {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-        }
-        row(accessibilityOn(), "שליטה במסך (נגישות)", "פתח הגדרות נגישות") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }
-        row(notificationsOn(), "הקראת הודעות וואטסאפ", "פתח הגדרות") {
-            startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        }
-        row(batteryOk(), "שלא תיפסק ברקע (סוללה)", "אשר") {
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
-        }
-        checks.addView(text(
-            "אם בהגדרות הנגישות או ההודעות הכפתור אפור: נכנסים להגדרות, אפליקציות, בוקר טוב, שלוש נקודות למעלה, ובוחרים \"אפשר הגדרות מוגבלות\".",
-            16f
-        ))
-
-        val car = Prefs.carName(this)
-        carView.text = if (car.isEmpty()) "לא נבחר רכב" else "הרכב שנבחר: $car"
-
-        updateStatus()
-    }
-
-    private fun chooseCar() {
-        if (Build.VERSION.SDK_INT >= 31 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-        ) {
-            askPermissions.launch(permissions)
-            return
-        }
-        val devices = try {
-            (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter?.bondedDevices?.toList().orEmpty()
-        } catch (e: SecurityException) {
-            emptyList()
-        }
-        if (devices.isEmpty()) {
-            android.widget.Toast.makeText(
-                this, "לא נמצאו מכשירי בלוטות' מחוברים בעבר. חבר את הטלפון לרכב בהגדרות הבלוטות' ונסה שוב.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-        val names = devices.map { it.name ?: it.address }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("איזה מהם הרכב שלך?")
-            .setItems(names) { _, i ->
-                Prefs.setCar(this, devices[i].address, names[i])
-                refresh()
-            }
-            .show()
-    }
-
-    private fun openUpdate() {
-        // כתובת קבועה: ההורדה מתחילה ישר בדפדפן (צריך להיות מחובר לגיטהאב)
-        startActivity(
-            Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://github.com/koby216/boker-tov/releases/download/latest/boker-tov.apk")
-            )
-        )
-    }
-
-    private fun updateStatus() {
+    private fun updateScreen() {
         val on = ListeningService.running
-        val phrase = (Prefs.wakeWord(this) + " " + Prefs.assistantName(this)).trim()
-        status.text = when {
-            !on -> "כבויה. לחץ הפעל, או על האייקון"
-            Prefs.keepListening(this) -> "מקשיבה. אמור: $phrase"
-            else -> "מקשיבה. אמור מה לעשות"
-        }
-        status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
+        if (!on) UiState.face = Face.OFF
+        character.setFace(if (on) UiState.face else Face.OFF)
+        caption.text = if (!on) "כבויה. לחץ הפעל" else UiState.caption.ifBlank { "אני מקשיבה" }
         mainButton.text = if (on) "כבה" else "הפעל"
+        mainButton.backgroundTintList =
+            ColorStateList.valueOf(Color.parseColor(if (on) "#C62828" else "#2E7D32"))
     }
 
     private fun toggle() {
         if (ListeningService.running) {
             ListeningService.stop(this)
-            mainButton.postDelayed({ refresh() }, 400)
+            mainButton.postDelayed({ updateScreen() }, 400)
             return
         }
-        val missing = missingPermissions()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!hasMic()) {
             askPermissions.launch(permissions)
             return
         }
         ListeningService.start(this, announce = true)
-        mainButton.postDelayed({ refresh() }, 600)
-        if (missing.isNotEmpty()) {
-            // מתחילים להקשיב גם בלי כל ההרשאות, אבל חלק מהפעולות לא יעבדו
-            status.text = "מקשיבה, אבל חסרות הרשאות"
-        }
+        mainButton.postDelayed({ updateScreen() }, 600)
     }
 }

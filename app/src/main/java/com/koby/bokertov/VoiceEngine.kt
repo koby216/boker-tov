@@ -82,6 +82,8 @@ class VoiceEngine(
 
     fun stop() {
         running = false
+        UiState.face = Face.OFF
+        UiState.caption = ""
         Earcon.restore(ctx)
         main.removeCallbacksAndMessages(null)
         stopRec()
@@ -106,6 +108,8 @@ class VoiceEngine(
     private fun speak(text: String, tries: Int = 0, then: (() -> Unit)? = null) {
         if (!running) return
         engaged = true
+        UiState.face = Face.SPEAKING
+        if (text.isNotBlank()) UiState.caption = text
         main.removeCallbacks(idleTimer)
         speaking = true
         onSpeakDone = then
@@ -156,6 +160,12 @@ class VoiceEngine(
     private fun listen() {
         if (!running || speaking) return
         engaged = true
+        UiState.face = Face.LISTENING
+        UiState.caption = when {
+            state == St.CONFIRM -> "כן או לא?"
+            state == St.WAKE && Prefs.keepListening(ctx) -> "אמור: בוקר טוב"
+            else -> "אני מקשיבה"
+        }
         val r = rec ?: createRecognizer().also { rec = it } ?: run { onFatal(); return }
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -336,6 +346,8 @@ class VoiceEngine(
     private fun goIdle(announce: Boolean = false) {
         if (!running) return
         DebugLog.add("סיימתי, נסגרת")
+        UiState.face = Face.OFF
+        UiState.caption = "נסגרתי. לחץ הפעל"
         main.removeCallbacks(watchdog)
         main.removeCallbacks(partialTrigger)
         main.removeCallbacks(wakeTrigger)
@@ -483,6 +495,8 @@ class VoiceEngine(
     }
 
     private fun runCommand(cmd: Cmd) {
+        UiState.face = Face.THINKING
+        UiState.caption = "רגע..."
         DebugLog.add("מבצעת: ${cmd::class.simpleName}")
         deliver(actions.execute(cmd))
     }
