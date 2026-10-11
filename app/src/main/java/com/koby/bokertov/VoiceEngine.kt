@@ -411,9 +411,14 @@ class VoiceEngine(
     /** מבצע את מה שהפעולה החזירה: מדבר, שואל, או חוזר להקשבה. */
     private fun deliver(o: Outcome) {
         when (o) {
-            is Outcome.Say ->
-                if (o.text.isBlank()) { o.after?.invoke(); toWake() }
-                else speak(o.text) { o.after?.invoke(); toWake() }
+            is Outcome.Say -> {
+                val finish = {
+                    o.after?.invoke()
+                    val next = o.next
+                    if (next != null) deliver(next()) else toWake()
+                }
+                if (o.text.isBlank()) finish() else speak(o.text) { finish() }
+            }
             is Outcome.Ask -> {
                 pendingAsk = o
                 speak(o.text) { state = St.CONFIRM; attempts = 0; listen() }
@@ -502,7 +507,13 @@ class VoiceEngine(
             QuickSpeak.say(ctx, "הגיעה הודעה מ$sender")
             return
         }
-        deliver(Outcome.Ask("הודעה מ$sender. להקריא?", { Outcome.Say(text) }, { Outcome.Silent }))
+        deliver(
+            Outcome.Ask(
+                "הודעה מ$sender. להקריא?",
+                { Outcome.Say(text, next = { actions.replyFlow(sender) }) },
+                { Outcome.Silent }
+            )
+        )
     }
 
     companion object {

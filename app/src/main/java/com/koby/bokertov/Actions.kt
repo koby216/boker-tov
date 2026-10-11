@@ -28,7 +28,11 @@ import java.util.Locale
 
 /** מה האפליקציה עושה אחרי פקודה: אומרת, שואלת, או מבקשת עוד מידע. */
 sealed class Outcome {
-    data class Say(val text: String, val after: (() -> Unit)? = null) : Outcome()
+    data class Say(
+        val text: String,
+        val next: (() -> Outcome)? = null,
+        val after: (() -> Unit)? = null
+    ) : Outcome()
     data class Ask(
         val text: String,
         val onYes: () -> Outcome,
@@ -238,20 +242,44 @@ class Actions(private val ctx: Context) {
         }
     }
 
-    private fun sendWhatsapp(c: Contact, message: String): Outcome {
+    private fun sendWhatsapp(c: Contact, message: String): Outcome =
+        Outcome.Say("") { openAndSend(c, message) }
+
+    private fun openAndSend(c: Contact, message: String) {
+        val i = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://wa.me/${waNumber(c.number)}?text=${Uri.encode(message)}")
+        )
+        when {
+            installed("com.whatsapp") -> i.setPackage("com.whatsapp")
+            installed("com.whatsapp.w4b") -> i.setPackage("com.whatsapp.w4b")
+        }
+        val opened = launch(i)
+        DebugLog.add(if (opened) "פתחתי את וואטסאפ" else "לא הצלחתי לפתוח את וואטסאפ")
+        // מחכים שהשיחה תיפתח ואז לוחצים על שליחה
+        main.postDelayed({ trySend(0) }, 3000)
+    }
+
+    // ---------- מענה להודעה נכנסת ----------
+
+    /** אחרי שהוקראה הודעה: לענות? מה לענות? חוזרת על התשובה, לשלוח? */
+    fun replyFlow(sender: String): Outcome = Outcome.Ask("לענות ל$sender?", {
+        Outcome.AskText("מה לענות?") { reply ->
+            Outcome.Ask("לשלוח ל$sender: $reply?", { replyTo(sender, reply) })
+        }
+    })
+
+    private fun replyTo(sender: String, message: String): Outcome {
+        val action = MessageStore.replyAction(sender)
         return Outcome.Say("") {
-            val i = Intent(
-                Intent.ACTION_VIEW,
-                Uri.parse("https://wa.me/${waNumber(c.number)}?text=${Uri.encode(message)}")
-            )
-            when {
-                installed("com.whatsapp") -> i.setPackage("com.whatsapp")
-                installed("com.whatsapp.w4b") -> i.setPackage("com.whatsapp.w4b")
+            if (action != null && MessageStore.sendReply(ctx, action, message)) {
+                DebugLog.add("עניתי ל$sender דרך ההתראה")
+                say("שלחתי")
+            } else {
+                // ההתראה כבר לא זמינה: אם איש הקשר שמור, שולחים דרך פתיחת הצ'אט
+                val c = findContacts(sender).firstOrNull()
+                if (c != null) openAndSend(c, message) else say("לא הצלחתי לענות ל$sender")
             }
-            val opened = launch(i)
-            DebugLog.add(if (opened) "פתחתי את וואטסאפ" else "לא הצלחתי לפתוח את וואטסאפ")
-            // מחכים שהשיחה תיפתח ואז לוחצים על שליחה
-            main.postDelayed({ trySend(0) }, 3000)
         }
     }
 
@@ -463,6 +491,7 @@ class Actions(private val ctx: Context) {
         val spoken = msgs.joinToString(". ") { (who, what) ->
             "הודעה מ$who: ${if (car) what.take(120) else what}"
         }
-        return Outcome.Say(spoken)
+        val last = msgs.last().first
+        return Outcome.Say(spoken, next = { replyFlow(last) })
     }
 }

@@ -121,11 +121,32 @@ object ContactFinder {
 
 object MessageStore {
     private val items = ArrayList<Pair<String, String>>()
+    private val actions = HashMap<String, android.app.Notification.Action>()
 
     @Synchronized
-    fun add(sender: String, text: String) {
+    fun add(sender: String, text: String, action: android.app.Notification.Action? = null) {
         items.add(sender to text)
         while (items.size > 10) items.removeAt(0)
+        if (action != null) actions[sender] = action
+    }
+
+    @Synchronized
+    fun replyAction(sender: String): android.app.Notification.Action? = actions[sender]
+
+    /** שולחת מענה דרך כפתור "השב" של ההתראה של וואטסאפ. עובד גם בקבוצות. */
+    fun sendReply(ctx: Context, action: android.app.Notification.Action, message: String): Boolean {
+        return try {
+            val inputs = action.remoteInputs ?: return false
+            val intent = android.content.Intent()
+            val bundle = android.os.Bundle()
+            for (ri in inputs) bundle.putCharSequence(ri.resultKey, message)
+            android.app.RemoteInput.addResultsToIntent(inputs, intent, bundle)
+            action.actionIntent.send(ctx, 0, intent)
+            true
+        } catch (e: Exception) {
+            DebugLog.add("מענה דרך ההתראה נכשל: ${e.javaClass.simpleName}")
+            false
+        }
     }
 
     @Synchronized

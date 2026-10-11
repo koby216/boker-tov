@@ -61,7 +61,8 @@ class MessageListener : NotificationListenerService() {
         lastKey = key
         lastAt = now
 
-        MessageStore.add(title, text)
+        val replyAction = n.actions?.firstOrNull { a -> a.remoteInputs?.isNotEmpty() == true }
+        MessageStore.add(title, text, replyAction)
         DebugLog.add("הגיעה הודעה מ$title")
         Handler(Looper.getMainLooper()).post {
             val engine = VoiceEngine.current
