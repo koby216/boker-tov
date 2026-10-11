@@ -191,8 +191,21 @@ object Parser {
             if (sendVerb != null || rest.startsWith("ל") || rest.startsWith("אל ")) return Cmd.Whatsapp(rest)
         }
 
-        verb("נווט", "תנווט", "תנווטי", "נווטי", "ניווט", "קח אותי", "תיקח אותי", "סע", "תסע")?.let {
-            val dest = stripLead(t.removePrefix(it).trim(), "לי", "אל", "ל")
+        // בקשת ניווט: המילה "נווט" יכולה להיכתב בכמה צורות, ולפעמים אחרי מילה אחת ("בוקר טוב נווט...")
+        val navRe = Regex("^[תל]?(?:נווט|נוווט|ניווט|נוט|נאוט|ניבוט)[יו]?$")
+        val navToks = t.split(" ")
+        val navAt = navToks.take(2).indexOfFirst { navRe.matches(it) }
+        val goVerb = verb(
+            "קח אותי", "תיקח אותי", "קחי אותי", "תקחי אותי", "סע", "תסע", "תיסע", "תסעי",
+            "אני רוצה לנסוע", "רוצה לנסוע", "תוביל אותי", "הוביל אותי"
+        )
+        if (navAt >= 0 || goVerb != null || t == "הביתה") {
+            val rest = when {
+                navAt >= 0 -> navToks.drop(navAt + 1).joinToString(" ")
+                goVerb != null -> t.removePrefix(goVerb)
+                else -> t
+            }.trim()
+            val dest = stripLead(rest, "לי", "אותי", "אל", "ל", "בוויז", "בוייז", "בווייז", "וויז", "וייז", "עם")
             val first = dest.substringBefore(" ")
             val clean = if (first.startsWith("ל") && first.length > 2 && first !in lPlaces) dest.substring(1) else dest
             return Cmd.Navigate(clean)
