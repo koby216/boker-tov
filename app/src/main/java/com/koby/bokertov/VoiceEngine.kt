@@ -26,7 +26,7 @@ class VoiceEngine(
     private enum class St { WAKE, COMMAND, CONFIRM, FREE, CHOOSE }
 
     private val main = Handler(Looper.getMainLooper())
-    private val actions = Actions(ctx)
+    private val actions = Actions(ctx).also { it.say = { t -> say(t) } }
 
     private var rec: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
@@ -382,7 +382,9 @@ class VoiceEngine(
     /** מבצע את מה שהפעולה החזירה: מדבר, שואל, או חוזר להקשבה. */
     private fun deliver(o: Outcome) {
         when (o) {
-            is Outcome.Say -> speak(o.text) { o.after?.invoke(); toWake() }
+            is Outcome.Say ->
+                if (o.text.isBlank()) { o.after?.invoke(); toWake() }
+                else speak(o.text) { o.after?.invoke(); toWake() }
             is Outcome.Ask -> {
                 pendingAsk = o
                 speak(o.text) { state = St.CONFIRM; attempts = 0; listen() }
@@ -425,6 +427,13 @@ class VoiceEngine(
     // ---------- אירועים מבחוץ ----------
 
     private var quietFirst = false
+
+    /** אומרת משפט עכשיו (למשל "שלחתי") ואז חוזרת להמתין. */
+    fun say(text: String) {
+        main.post {
+            if (running && !speaking) speak(text) { toWake() }
+        }
+    }
 
     /** אומרת משפט (למשל "אני מקשיבה") ואז מחכה ישר לפקודה, בלי מילת הפעלה. */
     fun announceThenListen(text: String, delayMs: Long = 0) {

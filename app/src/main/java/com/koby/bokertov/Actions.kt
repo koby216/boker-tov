@@ -42,6 +42,9 @@ sealed class Outcome {
 class Actions(private val ctx: Context) {
 
     private val main = Handler(Looper.getMainLooper())
+
+    /** מדברת משפט בזמן אחר (למשל אחרי שההודעה נשלחה). נקבע על ידי מנוע הקול. */
+    var say: (String) -> Unit = {}
     private val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     // ---------- עזרים ----------
@@ -236,7 +239,7 @@ class Actions(private val ctx: Context) {
     }
 
     private fun sendWhatsapp(c: Contact, message: String): Outcome {
-        return Outcome.Say("שולחת") {
+        return Outcome.Say("") {
             val i = Intent(
                 Intent.ACTION_VIEW,
                 Uri.parse("https://wa.me/${waNumber(c.number)}?text=${Uri.encode(message)}")
@@ -257,16 +260,19 @@ class Actions(private val ctx: Context) {
         val svc = screenControl()
         if (svc == null) {
             DebugLog.add("אין נגישות פעילה, לא יכולה ללחוץ על שליחה")
+            say("כדי לשלוח לבד צריך להפעיל את הנגישות. ההודעה מוכנה בוואטסאפ")
             return
         }
         if (svc.clickWhatsappSend()) {
             DebugLog.add("לחצתי על שליחה")
+            say("שלחתי")
             return
         }
         if (attempt < 5) {
             main.postDelayed({ trySend(attempt + 1) }, 1200)
         } else {
             DebugLog.add("לא מצאתי את כפתור השליחה בוואטסאפ")
+            say("לא הצלחתי לשלוח. ההודעה מוכנה בוואטסאפ")
         }
     }
 
