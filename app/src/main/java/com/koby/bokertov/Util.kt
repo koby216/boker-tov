@@ -130,7 +130,7 @@ object DebugLog {
     @Synchronized
     fun add(msg: String) {
         lines.add(fmt.format(java.util.Date()) + "  " + msg)
-        while (lines.size > 14) lines.removeAt(0)
+        while (lines.size > 30) lines.removeAt(0)
     }
 
     @Synchronized

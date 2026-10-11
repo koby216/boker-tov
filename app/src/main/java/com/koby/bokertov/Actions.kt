@@ -54,6 +54,7 @@ class Actions(private val ctx: Context) {
         ctx.startActivity(intent)
         true
     } catch (e: Exception) {
+        DebugLog.add("שגיאה בפתיחת אפליקציה: ${e.javaClass.simpleName}")
         false
     }
 
@@ -244,14 +245,15 @@ class Actions(private val ctx: Context) {
                 installed("com.whatsapp") -> i.setPackage("com.whatsapp")
                 installed("com.whatsapp.w4b") -> i.setPackage("com.whatsapp.w4b")
             }
-            if (launch(i)) {
-                // מחכים שהשיחה תיפתח ואז לוחצים על "שלח"
-                main.postDelayed({ trySend(0) }, 3000)
-            }
+            val opened = launch(i)
+            DebugLog.add(if (opened) "פתחתי את וואטסאפ" else "לא הצלחתי לפתוח את וואטסאפ")
+            // מחכים שהשיחה תיפתח ואז לוחצים על שליחה
+            main.postDelayed({ trySend(0) }, 3000)
         }
     }
 
     private fun trySend(attempt: Int) {
+        if (attempt == 0) DebugLog.add("מנסה ללחוץ על שליחה")
         val svc = screenControl()
         if (svc == null) {
             DebugLog.add("אין נגישות פעילה, לא יכולה ללחוץ על שליחה")
