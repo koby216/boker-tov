@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         },
         Step(
             6, { Prefs.carAddress(this).isNotEmpty() || Prefs.carDismissed(this) },
-            "אם אתה משתמש בי ברכב, צריך לבחור את הרכב שלך. לחץ על הכפתור הכחול ובחר את הרכב מהרשימה. אם אתה לא משתמש בי ברכב, לחץ דלג.",
+            "אם אתה משתמש בי ברכב: קודם חבר את הטלפון לרכב בבלוטות'. אחר כך לחץ על הכפתור הכחול ואשר שזה הרכב שלך. אם אתה לא משתמש בי ברכב, לחץ דלג.",
             "בחירת הרכב", "בחר רכב", null
         ) {
             startActivity(Intent(this, SettingsActivity::class.java).putExtra(SettingsActivity.EXTRA_CHOOSE_CAR, true))

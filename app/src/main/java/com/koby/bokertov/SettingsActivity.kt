@@ -124,7 +124,7 @@ class SettingsActivity : AppCompatActivity() {
         carView = text("", 18f)
         col.addView(carView)
         col.addView(bigButton("בחר רכב") { chooseCar() })
-        col.addView(text("כשהטלפון מתחבר לרכב שבחרת, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". קודם חבר את הטלפון לרכב פעם אחת בהגדרות הבלוטות'.", 16f))
+        col.addView(text("איך בוחרים: 1. מחברים את הטלפון לרכב בבלוטות'. 2. לוחצים \"בחר רכב\". 3. מאשרים שזה הרכב שלך. אחר כך, כשהטלפון מתחבר לרכב, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". אם הקול לא נשמע ברכב, בוחרים ברכב מקור קול \"בלוטות'\".", 16f))
 
         col.addView(text("מה אפשר להגיד", 22f, true))
         col.addView(text(
@@ -182,10 +182,65 @@ class SettingsActivity : AppCompatActivity() {
         ))
 
         val car = Prefs.carName(this)
-        carView.text = if (car.isEmpty()) "לא נבחר רכב" else "הרכב שנבחר: $car"
+        carView.text = if (car.isEmpty()) "לא נבחר רכב" else
+            "הרכב שנבחר: $car\n" + if (Actions(this).carConnected()) "✔ מחובר עכשיו" else "✘ לא מחובר עכשיו"
     }
 
+    /** מכשירי בלוטות' שמחוברים עכשיו להשמעת קול (הרכב, אוזניות, רמקול): שם וכתובת. */
+    private fun connectedBtAudio(): List<Pair<String, String>> {
+        if (Build.VERSION.SDK_INT < 28) return emptyList()
+        return try {
+            val am = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+            val types = setOf(
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO, 26, 27
+            )
+            am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
+                .filter { it.type in types && it.address.isNotEmpty() }
+                .map { (it.productName?.toString()?.ifBlank { null } ?: it.address) to it.address }
+                .distinctBy { it.second }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveCar(name: String, address: String) {
+        Prefs.setCar(this, address, name)
+        DrivingDetector.register(this)
+        android.widget.Toast.makeText(this, "הרכב נשמר: $name", android.widget.Toast.LENGTH_LONG).show()
+        refresh()
+    }
+
+    /** בחירת הרכב בלי רשימה מבלבלת: מזהים לבד לאיזה מכשיר הטלפון מחובר עכשיו. */
     private fun chooseCar() {
+        if (Build.VERSION.SDK_INT >= 31 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) {
+            askPermissions.launch(permissions)
+            return
+        }
+        val now = connectedBtAudio()
+        val b = androidx.appcompat.app.AlertDialog.Builder(this)
+        when {
+            now.isEmpty() -> b.setTitle("הטלפון לא מחובר לרכב עכשיו")
+                .setMessage("קודם מחברים את הטלפון לרכב בבלוטות', ואז לוחצים שוב על \"בחר רכב\".")
+                .setPositiveButton("פתח את הבלוטות'") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                }
+                .setNeutralButton("בחר מרשימה") { _, _ -> chooseFromList() }
+                .setNegativeButton("ביטול", null)
+            now.size == 1 -> b.setTitle("זה הרכב שלך?")
+                .setMessage("הטלפון מחובר עכשיו ל: ${now[0].first}")
+                .setPositiveButton("כן, זה הרכב") { _, _ -> saveCar(now[0].first, now[0].second) }
+                .setNegativeButton("לא, בחר אחר") { _, _ -> chooseFromList() }
+            else -> b.setTitle("איזה מהם הרכב שלך?")
+                .setItems(now.map { it.first }.toTypedArray()) { _, i -> saveCar(now[i].first, now[i].second) }
+                .setNegativeButton("ביטול", null)
+        }
+        b.show()
+    }
+
+    private fun chooseFromList() {
         if (Build.VERSION.SDK_INT >= 31 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -208,9 +263,7 @@ class SettingsActivity : AppCompatActivity() {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("איזה מהם הרכב שלך?")
             .setItems(names) { _, i ->
-                Prefs.setCar(this, devices[i].address, names[i])
-                DrivingDetector.register(this)
-                refresh()
+                saveCar(names[i], devices[i].address)
             }
             .show()
     }
