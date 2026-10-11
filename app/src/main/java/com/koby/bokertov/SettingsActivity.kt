@@ -134,6 +134,10 @@ class SettingsActivity : AppCompatActivity() {
         ))
         col.addView(text("הערה: אפליקציות של בנקים, תשלומים, סיסמאות ודואר אלקטרוני חסומות. האפליקציה לא נוגעת בהן.", 17f))
 
+        col.addView(text("הסרה", 22f, true))
+        col.addView(bigButton("הסרת האפליקציה") { uninstall() })
+        col.addView(text("מסירה את בוקר טוב מהטלפון. הטלפון ישאל אם לאשר.", 16f))
+
         setContentView(ScrollView(this).apply { addView(col) })
     }
 
@@ -266,6 +270,18 @@ class SettingsActivity : AppCompatActivity() {
                 saveCar(names[i], devices[i].address)
             }
             .show()
+    }
+
+    private fun uninstall() {
+        ListeningService.stop(this)
+        try {
+            startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")))
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                this, "לא הצלחתי לפתוח את ההסרה. אפשר להסיר בהגדרות הטלפון ← אפליקציות ← בוקר טוב.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun openUpdate() {
