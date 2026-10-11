@@ -106,6 +106,18 @@ class SettingsActivity : AppCompatActivity() {
         col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
         col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
 
+        col.addView(bigButton("בדיקת קול") {
+            QuickSpeak.say(this, "שלום, זה הקול שלי. אני מקשיבה.", flush = true)
+        })
+        col.addView(bigButton("הגדרות הקול של הטלפון") {
+            try {
+                startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+            } catch (e: Exception) {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            }
+        })
+        col.addView(text("לא נשמע טוב בעברית? בהגדרות הקול בוחרים \"שירותי דיבור של Google\" ומורידים קול בעברית.", 16f))
+
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(checks)
@@ -176,6 +188,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         row(notificationsOn(), "הקראת הודעות וואטסאפ", "פתח הגדרות") {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+        row(TtsFactory.engine(this) != null, "קול טוב בעברית (שירותי דיבור של Google)", "התקן") {
+            MainActivity.openTtsStore(this)
         }
         row(batteryOk(), "שלא תיפסק ברקע (סוללה)", "אשר") {
             startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))

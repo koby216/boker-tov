@@ -46,6 +46,12 @@ object Prefs {
      */
     fun carVoice(@Suppress("UNUSED_PARAMETER") ctx: Context): String = "call"
 
+    /** המשתמש כבר ראה את ההדרכה על "הגדרות מוגבלות" / על הקול של גוגל: לא מציקים שוב. */
+    fun restrictedSeen(ctx: Context): Boolean = sp(ctx).getBoolean("restricted_seen", false)
+    fun setRestrictedSeen(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("restricted_seen", v).apply()
+    fun ttsSeen(ctx: Context): Boolean = sp(ctx).getBoolean("tts_seen", false)
+    fun setTtsSeen(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("tts_seen", v).apply()
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =

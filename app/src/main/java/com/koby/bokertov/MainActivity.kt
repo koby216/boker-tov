@@ -93,6 +93,14 @@ class MainActivity : AppCompatActivity() {
             "אישור לפתוח אפליקציות", "פתח הגדרות", null
         ) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) },
         Step(
+            7, { android.os.Build.VERSION.SDK_INT < 33 || Prefs.restrictedSeen(this) || accessibilityOn() },
+            "לפני שנמשיך, צריך לבטל חסימה של הטלפון. לחץ על הכפתור הכחול. בדף שנפתח, לחץ על שלוש הנקודות למעלה ובחר: אפשר הגדרות מוגבלות. אם אין שלוש נקודות, חזור אחורה, זה בסדר.",
+            "מבטלים חסימה של הטלפון", "פתח את דף האפליקציה", null
+        ) {
+            Prefs.setRestrictedSeen(this, true)
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        },
+        Step(
             3, { accessibilityOn() },
             "כדי שאוכל ללחוץ במקומך, צריך להפעיל נגישות. לחץ על הכפתור הכחול, בחר בוקר טוב, הדלק את המתג, ולחץ אישור.",
             "צריך להפעיל נגישות", "פתח נגישות", restrictedTip
@@ -108,6 +116,14 @@ class MainActivity : AppCompatActivity() {
             "שלא תיפסק ברקע", "אשר", null
         ) {
             startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        },
+        Step(
+            8, { TtsFactory.engine(this) != null || Prefs.ttsSeen(this) },
+            "כדי שהקול שלי יישמע טוב בעברית, כדאי להתקין את שירותי הדיבור של גוגל. לחץ על הכפתור הכחול ולחץ התקן. אם זה כבר מותקן, חזור אחורה.",
+            "קול טוב בעברית", "התקן קול של גוגל", null
+        ) {
+            Prefs.setTtsSeen(this, true)
+            openTtsStore(this)
         },
         Step(
             6, { Prefs.carAddress(this).isNotEmpty() || Prefs.carDismissed(this) },
@@ -188,6 +204,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** פותח את הדף של "שירותי דיבור של Google" בחנות Play. */
+        fun openTtsStore(ctx: android.content.Context) {
+            try {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.tts")))
+            } catch (e: Exception) {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.tts")))
+            }
+        }
+
         @Volatile
         var instance: MainActivity? = null
         const val EXTRA_IDLE = "idle"
