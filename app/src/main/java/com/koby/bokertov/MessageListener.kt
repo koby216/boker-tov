@@ -79,6 +79,7 @@ class MessageListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         if (sbn.packageName != "com.whatsapp" && sbn.packageName != "com.whatsapp.w4b") return
+        if (Prefs.muted(this)) return   // מושתקת לגמרי: לא מקריאה ולא מודיעה על הודעות
         val n = sbn.notification ?: return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         // שיחות, "בודק הודעות חדשות" ושאר התראות מערכת של וואטסאפ אינן הודעות

@@ -69,6 +69,7 @@ class DrivingReceiver : BroadcastReceiver() {
             DrivingDetector.register(ctx)
             return
         }
+        if (Prefs.muted(ctx)) return
         if (!ActivityTransitionResult.hasResult(intent)) return
         val result = ActivityTransitionResult.extractResult(intent) ?: return
         val events = result.transitionEvents

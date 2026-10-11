@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var character: CharacterView
     private lateinit var caption: TextView
     private lateinit var mainButton: Button
+    private lateinit var muteButton: Button
     private lateinit var skipView: TextView
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     /** מתחיל להקשיב ואומר "אני מקשיבה". אם אין עדיין הרשאה, מבקש אותה. */
     private fun autoStart() {
         // אם חסר משהו, קודם המדריך הקולי (updateScreen מציג ואומר מה לעשות)
+        if (Prefs.muted(this)) { updateScreen(); return }   // מושתקת: חוזרת לעבוד רק בלחיצה על "הפעל"
         if (!setupSkipped && nextStep() != null) { updateScreen(); return }
         if (hasMic()) startListening() else askPermissions.launch(permissions)
     }
@@ -164,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         mainButton.text = step.button
         mainButton.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#1565C0"))
         skipView.visibility = View.VISIBLE
+        muteButton.visibility = View.GONE
         mainButton.setOnClickListener {
             leftForStep = step.id
             step.action()
@@ -189,7 +192,7 @@ class MainActivity : AppCompatActivity() {
     private fun routeIntent(i: Intent) {
         when {
             i.getBooleanExtra(EXTRA_IDLE, false) -> updateScreen()
-            i.hasExtra(EXTRA_SENDER) && hasMic() -> {
+            i.hasExtra(EXTRA_SENDER) && hasMic() && !Prefs.muted(this) -> {
                 ListeningService.start(
                     this, sender = i.getStringExtra(EXTRA_SENDER), text = i.getStringExtra(EXTRA_TEXT)
                 )
@@ -292,7 +295,17 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             setOnClickListener { toggle() }
         }
-        root.addView(mainButton, LinearLayout.LayoutParams(-1, dp(96)))
+        root.addView(mainButton, LinearLayout.LayoutParams(-1, dp(96)).apply { bottomMargin = dp(14) })
+
+        muteButton = Button(this).apply {
+            text = "השתק את בוקר טוב לגמרי"
+            textSize = 18f
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#6D6D6D"))
+            setOnClickListener { muteAll() }
+        }
+        root.addView(muteButton, LinearLayout.LayoutParams(-1, dp(60)))
 
         skipView = TextView(this).apply {
             text = "דלג והמשך"
@@ -332,13 +345,24 @@ class MainActivity : AppCompatActivity() {
             }
         }
         skipView.visibility = View.GONE
+        muteButton.visibility = if (Prefs.muted(this)) View.GONE else View.VISIBLE
         mainButton.setOnClickListener { toggle() }
         if (!on) UiState.face = Face.OFF
         character.setFace(if (on) UiState.face else Face.OFF)
-        caption.text = if (!on) "כבויה. לחץ הפעל" else UiState.caption.ifBlank { "אני מקשיבה" }
+        caption.text = if (!on) (if (Prefs.muted(this)) "מושתקת לגמרי. לחץ הפעל" else "כבויה. לחץ הפעל") else UiState.caption.ifBlank { "אני מקשיבה" }
         mainButton.text = if (on) "כבה" else "הפעל"
         mainButton.backgroundTintList =
             ColorStateList.valueOf(Color.parseColor(if (on) "#C62828" else "#2E7D32"))
+    }
+
+    /** השתקה מלאה: נסגרת ולא מקריאה כלום עד שלוחצים על הפעל. */
+    private fun muteAll() {
+        Prefs.setMuted(this, true)
+        ListeningService.stop(this)
+        android.widget.Toast.makeText(
+            this, "בוקר טוב מושתקת לגמרי. כדי להפעיל שוב לחץ על הפעל.", android.widget.Toast.LENGTH_LONG
+        ).show()
+        mainButton.postDelayed({ updateScreen() }, 400)
     }
 
     private fun toggle() {
@@ -351,6 +375,7 @@ class MainActivity : AppCompatActivity() {
             askPermissions.launch(permissions)
             return
         }
+        Prefs.setMuted(this, false)
         ListeningService.start(this, announce = true)
         mainButton.postDelayed({ updateScreen() }, 600)
     }

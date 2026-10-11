@@ -29,6 +29,7 @@ object CarLink {
 class BluetoothReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action != BluetoothDevice.ACTION_ACL_CONNECTED) return
+        if (Prefs.muted(ctx)) return
         if (!CarLink.isMyCar(ctx, intent)) return
         DebugLog.add("הטלפון התחבר לרכב")
         if (ListeningService.running) return   // השירות שרץ אומר את המשפט בעצמו

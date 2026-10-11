@@ -55,6 +55,10 @@ object Prefs {
     fun ttsSeen(ctx: Context): Boolean = sp(ctx).getBoolean("tts_seen", false)
     fun setTtsSeen(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("tts_seen", v).apply()
 
+    /** "השתק לגמרי": לא מקריאה הודעות, לא מודיעה על הרכב, ולא מתעוררת עד שלוחצים "הפעל". */
+    fun muted(ctx: Context): Boolean = sp(ctx).getBoolean("muted", false)
+    fun setMuted(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("muted", v).apply()
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =
