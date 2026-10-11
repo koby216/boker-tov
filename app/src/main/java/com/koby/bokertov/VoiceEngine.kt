@@ -243,7 +243,15 @@ class VoiceEngine(
             val phrase = Prefs.wakePhrase(ctx)
             val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) }
             if (hit == null) {
-                DebugLog.add("(חלקי) ${list.first()}")
+                // בזמן 2 הדקות מקבלים גם בקשה ברורה בלי "בוקר טוב"
+                val direct = directCommandText(list)
+                if (direct != null) {
+                    pendingWakeText = direct
+                    main.removeCallbacks(wakeTrigger)
+                    main.postDelayed(wakeTrigger, 900)
+                } else {
+                    DebugLog.add("(חלקי) ${list.first()}")
+                }
                 return
             }
             // מחכים רגע קצר למקרה שממשיכים לדבר ("בוקר טוב תתקשר לדני")
@@ -343,6 +351,7 @@ class VoiceEngine(
             St.WAKE -> {
                 val phrase = Prefs.wakePhrase(ctx)
                 val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) }
+                    ?: directCommandText(list)
                 if (hit == null) { main.postDelayed({ listen() }, 50); return }
                 main.removeCallbacks(wakeTrigger)
                 onWakeText(hit)
@@ -396,6 +405,22 @@ class VoiceEngine(
             stopRec()
             handleResults(l)
         }
+    }
+
+    /**
+     * בקשה ברורה שאפשר לקבל בלי "בוקר טוב" (רק כשלא במצב "מקשיבה כל הזמן").
+     * רק סוגי בקשות מדויקים, כדי שדיבור סתם בחדר לא יפעיל כלום.
+     */
+    private fun directCommandText(list: List<String>): String? {
+        if (Prefs.keepListening(ctx)) return null
+        for (raw in list) {
+            val c = Parser.parse(raw) ?: continue
+            val ok = c is Cmd.Call || c is Cmd.Whatsapp || c is Cmd.Navigate || c is Cmd.PlayMusic ||
+                c is Cmd.Timer || c is Cmd.Alarm || c is Cmd.TellTime || c is Cmd.TellDate ||
+                c is Cmd.OpenApp || c is Cmd.ReadMessages
+            if (ok) return Text.norm(raw)
+        }
+        return null
     }
 
     private var pendingWakeText: String? = null
