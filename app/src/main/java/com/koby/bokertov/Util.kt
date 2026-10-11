@@ -25,11 +25,10 @@ object Prefs {
     private fun sp(ctx: Context) = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
 
     fun wakeWord(ctx: Context): String = sp(ctx).getString("wake", "בוקר טוב") ?: "בוקר טוב"
-    fun assistantName(ctx: Context): String {
-        val n = sp(ctx).getString("name", "") ?: ""
-        // אם השם זהה למילת ההפעלה (או כלול בה), מתעלמים ממנו
-        return if (Text.norm(wakeWord(ctx)).contains(Text.norm(n))) "" else n
-    }
+    /** השם נקבע בהמשך בנפרד. כרגע אין שם, ומילת ההפעלה היא "בוקר טוב" בלבד. */
+    @Suppress("UNUSED_PARAMETER")
+    fun assistantName(ctx: Context): String = ""
+
     fun setAssistantName(ctx: Context, v: String) = sp(ctx).edit().putString("name", v.trim()).apply()
 
     /** האם להישאר מקשיבה ל"בוקר טוב" כל הזמן. כבוי = נסגרת ושותקת אחרי כל משימה. */

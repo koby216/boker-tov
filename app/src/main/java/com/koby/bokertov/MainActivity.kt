@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
-            debugView.text = DebugLog.text()
+            if (debugView.visibility == View.VISIBLE) debugView.text = DebugLog.text()
             updateStatus()
             ticker.postDelayed(this, 1500)
         }
@@ -151,7 +151,16 @@ class MainActivity : AppCompatActivity() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
         col.addView(text("בוקר טוב", 34f, true, Color.parseColor("#B8860B")))
-        col.addView(text("גרסה ${BuildConfig.BUILD_ID}", 14f, false, Color.parseColor("#777777")))
+        val versionView = text("גרסה ${BuildConfig.BUILD_ID}", 14f, false, Color.parseColor("#777777"))
+        col.addView(versionView)
+        // יומן פנימי מוסתר: לחיצה ארוכה על שורת הגרסה מציגה או מסתירה אותו (לאבחון תקלות בלבד)
+        debugView = text(DebugLog.text(), 15f).apply { visibility = View.GONE }
+        col.addView(debugView)
+        versionView.setOnLongClickListener {
+            debugView.visibility = if (debugView.visibility == View.GONE) View.VISIBLE else View.GONE
+            debugView.text = DebugLog.text()
+            true
+        }
         status = text("", 22f, true)
         col.addView(status)
 
@@ -160,12 +169,6 @@ class MainActivity : AppCompatActivity() {
 
         col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
         col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
-
-        col.addView(text("מה קורה בפנים (לבדיקה)", 20f, true))
-        debugView = text(DebugLog.text(), 15f)
-        col.addView(debugView)
-        col.addView(bigButton("בדיקת קול") { testVoice() })
-        col.addView(bigButton("בדיקת הודעה נכנסת") { testMessage() })
 
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -189,22 +192,6 @@ class MainActivity : AppCompatActivity() {
         col.addView(carView)
         col.addView(bigButton("בחר רכב") { chooseCar() })
         col.addView(text("כשהטלפון מתחבר לרכב שבחרת, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". קודם חבר את הטלפון לרכב פעם אחת בהגדרות הבלוטות'.", 16f))
-
-        col.addView(text("שם לאפליקציה (לא חובה)", 20f, true))
-        col.addView(text("אם תוסיף שם, תגיד למשל \"בוקר טוב שם\". כך היא לא תתעורר כשאומרים בוקר טוב סתם למישהו בבית.", 17f))
-        val nameBox = EditText(this).apply {
-            hint = "למשל: דני"
-            textSize = 22f
-            setText(Prefs.assistantName(this@MainActivity))
-            inputType = InputType.TYPE_CLASS_TEXT
-            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
-        }
-        col.addView(nameBox)
-        col.addView(bigButton("שמור שם") {
-            Prefs.setAssistantName(this, nameBox.text.toString())
-            if (ListeningService.running) { ListeningService.stop(this); ListeningService.start(this) }
-            refresh()
-        })
 
         col.addView(text("מה אפשר להגיד", 22f, true))
         col.addView(text(
@@ -298,33 +285,6 @@ class MainActivity : AppCompatActivity() {
                 refresh()
             }
             .show()
-    }
-
-    /** מדמה הגעת הודעה, כדי לבדוק את השאלות בלי קשר לוואטסאפ. */
-    private fun testMessage() {
-        val engine = VoiceEngine.current
-        if (engine != null) {
-            engine.onNewMessage("בדיקה", "זו הודעת בדיקה")
-        } else if (hasMic()) {
-            ListeningService.start(this, sender = "בדיקה", text = "זו הודעת בדיקה")
-            mainButton.postDelayed({ refresh() }, 700)
-        } else {
-            askPermissions.launch(permissions)
-        }
-    }
-
-    private fun testVoice() {
-        testTts?.shutdown()
-        testTts = TextToSpeech(this) { st ->
-            val t = testTts
-            if (st != TextToSpeech.SUCCESS || t == null) {
-                DebugLog.add("בדיקת קול: הקול של הטלפון לא עלה")
-                return@TextToSpeech
-            }
-            val r = t.setLanguage(java.util.Locale("he", "IL"))
-            DebugLog.add("בדיקת קול: עברית תוצאה $r (מינוס אומר שאין קול עברי)")
-            t.speak("שלום, אני שומעת אותך", TextToSpeech.QUEUE_FLUSH, null, "test")
-        }
     }
 
     private fun openUpdate() {
