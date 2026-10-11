@@ -103,8 +103,11 @@ class SettingsActivity : AppCompatActivity() {
             true
         }
 
-        col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
-        col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
+        // בגרסה לחנות העדכונים מגיעים מחנות Play, ולכן אין כפתור עדכון
+        if (!BuildConfig.PLAY) {
+            col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
+            col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
+        }
 
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -134,9 +137,11 @@ class SettingsActivity : AppCompatActivity() {
         ))
         col.addView(text("הערה: אפליקציות של בנקים, תשלומים, סיסמאות ודואר אלקטרוני חסומות. האפליקציה לא נוגעת בהן.", 17f))
 
-        col.addView(text("הסרה", 22f, true))
-        col.addView(bigButton("הסרת האפליקציה") { uninstall() })
-        col.addView(text("מסירה את בוקר טוב מהטלפון. הטלפון ישאל אם לאשר.", 16f))
+        if (!BuildConfig.PLAY) {
+            col.addView(text("הסרה", 22f, true))
+            col.addView(bigButton("הסרת האפליקציה") { uninstall() })
+            col.addView(text("מסירה את בוקר טוב מהטלפון. הטלפון ישאל אם לאשר.", 16f))
+        }
 
         setContentView(ScrollView(this).apply { addView(col) })
     }

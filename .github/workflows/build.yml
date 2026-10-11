@@ -19,22 +19,25 @@ jobs:
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDirectDebug bundlePlayRelease --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: boker-tov-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: |
+            app/build/outputs/apk/direct/debug/*.apk
+            app/build/outputs/bundle/playRelease/*.aab
       - name: Publish release
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk boker-tov.apk
+          cp app/build/outputs/apk/direct/debug/app-direct-debug.apk boker-tov.apk
+          cp app/build/outputs/bundle/playRelease/app-play-release.aab boker-tov.aab
           # מוחקים טיוטות ישנות שנשארו
           gh api "repos/${{ github.repository }}/releases" --jq '.[] | select(.draft) | .id' \
             | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/releases/{}" || true
           # גרסה חדשה עם שם ייחודי בכל בנייה, והיא מסומנת כאחרונה
-          gh release create "build-${{ github.run_number }}" boker-tov.apk \
+          gh release create "build-${{ github.run_number }}" boker-tov.apk boker-tov.aab \
             --title "גרסה ${{ github.run_number }}" \
             --notes "קובץ ההתקנה האחרון של בוקר טוב." \
             --target "${{ github.sha }}" \

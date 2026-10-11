@@ -11,7 +11,8 @@ android {
         applicationId = "com.koby.bokertov"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        // כל העלאה לחנות צריכה מספר גדול יותר: משתמשים במספר הבנייה של ה-CI
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "0.1"
         // מספר הגרסה (חלק מהמזהה של ההעלאה) מוצג במסך הראשי, כדי לדעת איזו גרסה מותקנת
         buildConfigField("String", "BUILD_ID", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
@@ -19,6 +20,19 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    // שתי גרסאות: direct (קובץ התקנה רגיל, עם כפתור עדכון) ו-play (לחנות, בלי עדכון עצמי והסרה)
+    flavorDimensions += "dist"
+    productFlavors {
+        create("direct") {
+            dimension = "dist"
+            buildConfigField("boolean", "PLAY", "false")
+        }
+        create("play") {
+            dimension = "dist"
+            buildConfigField("boolean", "PLAY", "true")
+        }
     }
 
     // מפתח חתימה קבוע, כדי שכל גרסה חדשה תתעדכן מעל הקודמת בלי להתנגש
@@ -34,6 +48,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // מפתח העלאה לחנות (חנות Play חותמת מחדש בעצמה, כך שהמפתח הזה משמש רק להעלאה)
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
