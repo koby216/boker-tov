@@ -142,7 +142,7 @@ object MessageStore {
     @Synchronized
     fun isDuplicate(sender: String, text: String): Boolean {
         val p = seen[sender] ?: return false
-        return p.first == text && System.currentTimeMillis() - p.second < 10 * 60 * 1000L
+        return Text.norm(p.first) == Text.norm(text) && System.currentTimeMillis() - p.second < 10 * 60 * 1000L
     }
 
     @Synchronized
@@ -166,8 +166,12 @@ object MessageStore {
     fun isOwnEcho(sender: String, text: String): Boolean {
         if (echoText.isEmpty()) return false
         val age = System.currentTimeMillis() - echoAt
-        val same = sender.equals(echoSender, true) || sender.contains(echoSender) || echoSender.contains(sender)
-        return same && (age < 6000 || (age < 120000 && text.contains(echoText)))
+        if (age > 120000) return false
+        val a = Text.norm(sender)
+        val b = Text.norm(echoSender)
+        val same = a.isNotEmpty() && b.isNotEmpty() && (a == b || a.contains(b) || b.contains(a))
+        // בחצי הדקה אחרי שענינו: כל התראה מאותה שיחה היא הד (וואטסאפ מציגה מחדש את השיחה, בטקסט משתנה)
+        return same && (age < 30000 || Text.norm(text).contains(Text.norm(echoText)))
     }
 
     @Synchronized
