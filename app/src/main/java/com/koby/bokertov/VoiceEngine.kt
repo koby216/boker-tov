@@ -532,6 +532,7 @@ class VoiceEngine(
     }
 
     fun onNewMessage(sender: String, text: String) {
+        DebugLog.add("הודעה נכנסת: מצב=${state.name}, מדברת=$speaking, פעילה=$running")
         if (!running || state != St.WAKE || speaking) {
             // באמצע שיחה איתה: אומרים רק שהגיעה הודעה, אחרי שהיא מסיימת לדבר
             DebugLog.add("הודעה מ$sender הגיעה בזמן שהיא עסוקה")

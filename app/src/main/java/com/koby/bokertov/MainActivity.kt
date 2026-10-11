@@ -164,6 +164,7 @@ class MainActivity : AppCompatActivity() {
         debugView = text(DebugLog.text(), 15f)
         col.addView(debugView)
         col.addView(bigButton("בדיקת קול") { testVoice() })
+        col.addView(bigButton("בדיקת הודעה נכנסת") { testMessage() })
 
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -296,6 +297,19 @@ class MainActivity : AppCompatActivity() {
                 refresh()
             }
             .show()
+    }
+
+    /** מדמה הגעת הודעה, כדי לבדוק את השאלות בלי קשר לוואטסאפ. */
+    private fun testMessage() {
+        val engine = VoiceEngine.current
+        if (engine != null) {
+            engine.onNewMessage("בדיקה", "זו הודעת בדיקה")
+        } else if (hasMic()) {
+            ListeningService.start(this, sender = "בדיקה", text = "זו הודעת בדיקה")
+            mainButton.postDelayed({ refresh() }, 700)
+        } else {
+            askPermissions.launch(permissions)
+        }
     }
 
     private fun testVoice() {
