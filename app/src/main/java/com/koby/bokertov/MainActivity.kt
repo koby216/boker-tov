@@ -82,6 +82,9 @@ class MainActivity : AppCompatActivity() {
         mainButton = bigButton("הפעל") { toggle() }.apply { textSize = 28f }
         col.addView(mainButton, LinearLayout.LayoutParams(-1, dp(90)))
 
+        col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
+        col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
+
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(checks)
@@ -166,6 +169,16 @@ class MainActivity : AppCompatActivity() {
         status.text = if (on) "מקשיבה. אמור: $phrase" else "כבויה"
         status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
         mainButton.text = if (on) "כבה" else "הפעל"
+    }
+
+    private fun openUpdate() {
+        // כתובת קבועה: ההורדה מתחילה ישר בדפדפן (צריך להיות מחובר לגיטהאב)
+        startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://github.com/koby216/boker-tov/releases/download/latest/boker-tov.apk")
+            )
+        )
     }
 
     private fun toggle() {
