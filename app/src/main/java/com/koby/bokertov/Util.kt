@@ -24,7 +24,11 @@ object Prefs {
     private fun sp(ctx: Context) = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
 
     fun wakeWord(ctx: Context): String = sp(ctx).getString("wake", "בוקר טוב") ?: "בוקר טוב"
-    fun assistantName(ctx: Context): String = sp(ctx).getString("name", "") ?: ""
+    fun assistantName(ctx: Context): String {
+        val n = sp(ctx).getString("name", "") ?: ""
+        // אם השם זהה למילת ההפעלה (או כלול בה), מתעלמים ממנו
+        return if (Text.norm(wakeWord(ctx)).contains(Text.norm(n))) "" else n
+    }
     fun setAssistantName(ctx: Context, v: String) = sp(ctx).edit().putString("name", v.trim()).apply()
 
     /** הביטוי המלא שמעיר את האפליקציה, מנוקה להשוואה. */

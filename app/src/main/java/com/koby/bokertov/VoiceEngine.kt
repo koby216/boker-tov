@@ -124,6 +124,9 @@ class VoiceEngine(
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
@@ -145,7 +148,16 @@ class VoiceEngine(
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
-        override fun onPartialResults(partialResults: Bundle?) {}
+        override fun onPartialResults(partialResults: Bundle?) {
+            if (!running || speaking || state != St.WAKE) return
+            val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+            val phrase = Prefs.wakePhrase(ctx)
+            val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) } ?: return
+            // מחכים רגע קצר למקרה שממשיכים לדבר ("בוקר טוב תתקשר לדני")
+            pendingWakeText = hit
+            main.removeCallbacks(wakeTrigger)
+            main.postDelayed(wakeTrigger, 600)
+        }
         override fun onEvent(eventType: Int, params: Bundle?) {}
 
         override fun onError(error: Int) {
@@ -159,7 +171,7 @@ class VoiceEngine(
                 }
             }
             if (state == St.WAKE) {
-                main.postDelayed({ listen() }, 400)
+                main.postDelayed({ listen() }, 150)
             } else {
                 noInput()
             }
@@ -179,7 +191,7 @@ class VoiceEngine(
         state = St.WAKE
         attempts = 0
         pendingAsk = null; pendingText = null; pendingChoose = null
-        main.postDelayed({ listen() }, 300)
+        main.postDelayed({ listen() }, 100)
     }
 
     private fun handleResults(list: List<String>) {
@@ -187,15 +199,9 @@ class VoiceEngine(
             St.WAKE -> {
                 val phrase = Prefs.wakePhrase(ctx)
                 val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) }
-                if (hit == null) { main.postDelayed({ listen() }, 200); return }
-                val rest = hit.substringAfter(phrase).trim()
-                beep()
-                val cmd = if (rest.isNotEmpty()) Parser.parse(rest) else null
-                if (cmd != null) runCommand(cmd) else {
-                    state = St.COMMAND
-                    attempts = 0
-                    main.postDelayed({ listen() }, 350)
-                }
+                if (hit == null) { main.postDelayed({ listen() }, 50); return }
+                main.removeCallbacks(wakeTrigger)
+                onWakeText(hit)
             }
             St.COMMAND -> {
                 val cmd = list.firstNotNullOfOrNull { Parser.parse(it) }
@@ -232,6 +238,29 @@ class VoiceEngine(
                 }
                 if (idx != null && idx < q.labels.size) deliver(q.onPick(idx)) else noInput(heard = true)
             }
+        }
+    }
+
+    private var pendingWakeText: String? = null
+
+    private val wakeTrigger = Runnable {
+        val hit = pendingWakeText
+        pendingWakeText = null
+        if (hit != null && running && !speaking && state == St.WAKE) {
+            try { rec?.cancel() } catch (e: Exception) { }
+            onWakeText(hit)
+        }
+    }
+
+    private fun onWakeText(hit: String) {
+        val phrase = Prefs.wakePhrase(ctx)
+        val rest = hit.substringAfter(phrase).trim()
+        beep()
+        val cmd = if (rest.isNotEmpty()) Parser.parse(rest) else null
+        if (cmd != null) runCommand(cmd) else {
+            state = St.COMMAND
+            attempts = 0
+            main.postDelayed({ listen() }, 200)
         }
     }
 
