@@ -129,7 +129,7 @@ class SettingsActivity : AppCompatActivity() {
         val options = listOf(
             "media" to "ברמקולי הרכב, כשהרכב על \"מדיה\" (רגיל)",
             "call" to "ברמקולי הרכב כמו שיחת טלפון (עובד גם כשהרכב על רדיו)",
-            "phone" to "ברמקול של הטלפון"
+            "phone" to "ברמקול של הטלפון (מומלץ, עובד תמיד)"
         )
         val current = Prefs.carVoice(this)
         for ((i, o) in options.withIndex()) {
