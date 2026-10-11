@@ -16,7 +16,7 @@ object QuickSpeak {
     private var ready = false
     private val pending = ArrayList<String>()
 
-    fun say(ctx: Context, text: String) {
+    fun say(ctx: Context, text: String, flush: Boolean = false) {
         val app = ctx.applicationContext
         if (tts == null) {
             tts = TextToSpeech(app) { st ->
@@ -30,8 +30,12 @@ object QuickSpeak {
                 }
             }
         }
-        if (ready) tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime())
-        else pending.add(text)
+        if (flush) pending.clear()
+        if (ready) {
+            tts?.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime())
+        } else {
+            pending.add(text)
+        }
     }
 }
 

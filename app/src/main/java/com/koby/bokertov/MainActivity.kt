@@ -1,7 +1,12 @@
 package com.koby.bokertov
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -22,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var character: CharacterView
     private lateinit var caption: TextView
     private lateinit var mainButton: Button
+    private lateinit var skipView: TextView
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -34,8 +40,6 @@ class MainActivity : AppCompatActivity() {
 
     private val askPermissions =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
-            // אם קיבלנו את המיקרופון, מתחילים להקשיב מיד
-            if (hasMic() && !ListeningService.running) startListening()
             updateScreen()
         }
 
@@ -44,7 +48,101 @@ class MainActivity : AppCompatActivity() {
 
     /** מתחיל להקשיב ואומר "אני מקשיבה". אם אין עדיין הרשאה, מבקש אותה. */
     private fun autoStart() {
+        // אם חסר משהו, קודם המדריך הקולי (updateScreen מציג ואומר מה לעשות)
+        if (!setupSkipped && nextStep() != null) { updateScreen(); return }
         if (hasMic()) startListening() else askPermissions.launch(permissions)
+    }
+
+    // ---------- מדריך קולי להתקנה ועדכון ----------
+
+    private class Step(
+        val id: Int,
+        val done: () -> Boolean,
+        val say: String,
+        val caption: String,
+        val button: String,
+        val tip: String?,
+        val action: () -> Unit
+    )
+
+    private val restrictedTip =
+        "אם המתג אפור ואי אפשר ללחוץ עליו: צא להגדרות של הטלפון, בחר אפליקציות, בחר בוקר טוב, " +
+            "לחץ על שלוש הנקודות למעלה, ובחר אפשר הגדרות מוגבלות. אחר כך חזור ונסה שוב."
+
+    private fun missingPermissions() =
+        permissions.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+
+    private fun accessibilityOn(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false
+        val me = ComponentName(this, ControlAccessibilityService::class.java).flattenToString()
+        return enabled.split(":").any { it.equals(me, true) }
+    }
+
+    private fun notificationsOn() =
+        NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+
+    private fun batteryOk() =
+        (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+
+    private fun steps(): List<Step> = listOf(
+        Step(
+            1, { missingPermissions().isEmpty() },
+            "כדי להתחיל, צריך לאשר הרשאות. לחץ על הכפתור הכחול, ובכל חלון שמופיע לחץ אפשר.",
+            "צריך לאשר הרשאות", "אשר הרשאות", null
+        ) { askPermissions.launch(permissions) },
+        Step(
+            2, { Settings.canDrawOverlays(this) },
+            "עכשיו צריך לאשר לי לפתוח אפליקציות. לחץ על הכפתור הכחול, בחר בוקר טוב, והדלק את המתג.",
+            "אישור לפתוח אפליקציות", "פתח הגדרות", null
+        ) { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) },
+        Step(
+            3, { accessibilityOn() },
+            "כדי שאוכל ללחוץ במקומך, צריך להפעיל נגישות. לחץ על הכפתור הכחול, בחר בוקר טוב, הדלק את המתג, ולחץ אישור.",
+            "צריך להפעיל נגישות", "פתח נגישות", restrictedTip
+        ) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+        Step(
+            4, { notificationsOn() },
+            "כדי שאקריא הודעות וואטסאפ, צריך לאשר גישה להתראות. לחץ על הכפתור הכחול, בחר בוקר טוב, והדלק את המתג.",
+            "צריך לאשר גישה להתראות", "פתח התראות", restrictedTip
+        ) { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
+        Step(
+            5, { batteryOk() },
+            "כדי שהטלפון לא יכבה אותי ברקע, לחץ על הכפתור הכחול ובחר אפשר.",
+            "שלא תיפסק ברקע", "אשר", null
+        ) {
+            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+        }
+    )
+
+    private fun nextStep(): Step? = steps().firstOrNull { !it.done() }
+
+    private var setupSkipped = false
+    private var setupSpoken = -1
+    private var inSetup = false
+    private var leftForStep = -1
+    private var guideUntil = 0L
+
+    private fun showSetup(step: Step) {
+        inSetup = true
+        if (setupSpoken != step.id) {
+            setupSpoken = step.id
+            QuickSpeak.say(this, step.say, flush = true)
+            guideUntil = System.currentTimeMillis() + step.say.length * 75L
+        } else if (leftForStep == step.id && step.tip != null) {
+            // חזר מההגדרות ועוד לא הצליח: אומרים את העצה
+            leftForStep = -1
+            QuickSpeak.say(this, step.tip, flush = true)
+            guideUntil = System.currentTimeMillis() + step.tip.length * 75L
+        }
+        character.setFace(if (System.currentTimeMillis() < guideUntil) Face.SPEAKING else Face.THINKING)
+        caption.text = step.caption
+        mainButton.text = step.button
+        mainButton.backgroundTintList = ColorStateList.valueOf(Color.parseColor("#1565C0"))
+        skipView.visibility = View.VISIBLE
+        mainButton.setOnClickListener {
+            leftForStep = step.id
+            step.action()
+        }
     }
 
     private fun startListening() {
@@ -160,11 +258,43 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(mainButton, LinearLayout.LayoutParams(-1, dp(96)))
 
+        skipView = TextView(this).apply {
+            text = "דלג והמשך"
+            textSize = 18f
+            setTextColor(Color.parseColor("#666666"))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, dp(4))
+            visibility = View.GONE
+            setOnClickListener {
+                setupSkipped = true
+                visibility = View.GONE
+                autoStart()
+            }
+        }
+        root.addView(skipView, LinearLayout.LayoutParams(-1, -2))
+
         setContentView(root)
     }
 
     private fun updateScreen() {
         val on = ListeningService.running
+        if (!on && !setupSkipped) {
+            val step = nextStep()
+            if (step != null) {
+                showSetup(step)
+                return
+            }
+            if (inSetup) {
+                // סיימנו את כל הצעדים: מתחילים להקשיב
+                inSetup = false
+                skipView.visibility = View.GONE
+                mainButton.setOnClickListener { toggle() }
+                autoStart()
+                return
+            }
+        }
+        skipView.visibility = View.GONE
+        mainButton.setOnClickListener { toggle() }
         if (!on) UiState.face = Face.OFF
         character.setFace(if (on) UiState.face else Face.OFF)
         caption.text = if (!on) "כבויה. לחץ הפעל" else UiState.caption.ifBlank { "אני מקשיבה" }
