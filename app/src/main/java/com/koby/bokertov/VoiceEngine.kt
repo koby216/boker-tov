@@ -153,11 +153,19 @@ class VoiceEngine(
         val mode = if (actions.carConnected()) Prefs.carVoice(ctx) else "media"
         routeCar(mode)
         // ערוץ השיחות של הרכב לוקח רגע להתחבר, לכן מחכים לפני שמתחילים לדבר
-        val wait = when (mode) { "call" -> 1300L; "phone" -> 250L; else -> 0L }
+        val wait = when (mode) { "call" -> 2200L; "phone" -> 250L; else -> 0L }
         // רשת ביטחון: אם הקול נתקע, ממשיכים אחרי זמן סביר
         main.postDelayed(speakTimeout, wait + 4000L + text.length * 120L)
         val say = Runnable {
             if (!running || !speaking) return@Runnable
+            if (mode == "call") {
+                try {
+                    val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                    val state = if (android.os.Build.VERSION.SDK_INT >= 31) "מכשיר תקשורת: ${am.communicationDevice?.type}"
+                    else "סקו דולק: ${am.isBluetoothScoOn}"
+                    DebugLog.add("ערוץ שיחות, מצב: $state, אנדרואיד ${android.os.Build.VERSION.SDK_INT}")
+                } catch (e: Exception) { }
+            }
             curUtt = "u" + System.nanoTime()
             val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, curUtt)
             if (res != TextToSpeech.SUCCESS) {
@@ -227,7 +235,9 @@ class VoiceEngine(
                         val dev = am.availableCommunicationDevices.firstOrNull {
                             it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO || it.type == 26
                         }
+                        DebugLog.add("מכשירי תקשורת זמינים: " + am.availableCommunicationDevices.joinToString { "${it.type}" })
                         if (dev != null) done = am.setCommunicationDevice(dev)
+                        DebugLog.add("חיבור לערוץ שיחות: $done")
                     }
                     if (!done) {
                         @Suppress("DEPRECATION")
