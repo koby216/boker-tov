@@ -76,6 +76,7 @@ class VoiceEngine(
 
     fun stop() {
         running = false
+        Earcon.restore(ctx)
         main.removeCallbacksAndMessages(null)
         stopRec()
         tts?.stop()
@@ -103,6 +104,8 @@ class VoiceEngine(
         main.removeCallbacks(watchdog)
         main.removeCallbacks(wakeTrigger)
         main.removeCallbacks(partialTrigger)
+        main.removeCallbacks(restoreSounds)
+        Earcon.restore(ctx)
         stopRec()
         DebugLog.add("אומרת: $text")
         if (tries == 0) {
@@ -156,6 +159,9 @@ class VoiceEngine(
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
+            Earcon.mute(ctx)
+            main.removeCallbacks(restoreSounds)
+            main.postDelayed(restoreSounds, 900)
             r.startListening(i)
             // אם הזיהוי לא מגיב בכלל, מתחילים אותו מחדש
             main.removeCallbacks(watchdog)
@@ -175,6 +181,10 @@ class VoiceEngine(
         }
     }
 
+    private val restoreSounds = Runnable { Earcon.restore(ctx) }
+
+    private var wakeDelay = 150L
+
     private val watchdog = Runnable {
         if (running && !speaking) {
             DebugLog.add("הזיהוי לא הגיב, מתחילה מחדש")
@@ -192,9 +202,13 @@ class VoiceEngine(
         override fun onReadyForSpeech(params: Bundle?) {
             main.removeCallbacks(watchdog)
             main.postDelayed(watchdog, 12000)
+            Earcon.restore(ctx)
             if (beepOnReady) { beepOnReady = false; beep() }
         }
-        override fun onBeginningOfSpeech() { DebugLog.add("שמעתי התחלת דיבור") }
+        override fun onBeginningOfSpeech() {
+            wakeDelay = 150L
+            DebugLog.add("שמעתי התחלת דיבור")
+        }
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() { DebugLog.add("הדיבור הסתיים") }
@@ -240,7 +254,9 @@ class VoiceEngine(
                 }
             }
             if (state == St.WAKE) {
-                main.postDelayed({ listen() }, 150)
+                // כשאין דיבור, מאריכים בהדרגה את ההפסקה בין התחלות כדי שלא ישמעו צלילים ברצף
+                main.postDelayed({ listen() }, wakeDelay)
+                wakeDelay = (wakeDelay * 2).coerceAtMost(1500L)
             } else {
                 noInput()
             }
@@ -249,6 +265,7 @@ class VoiceEngine(
         override fun onResults(results: Bundle?) {
             main.removeCallbacks(watchdog)
             main.removeCallbacks(partialTrigger)
+            wakeDelay = 150L
             if (!running || speaking) return
             if (rec == null) return   // תשובה שנשארה ממופע זיהוי שכבר נסגר
             val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()

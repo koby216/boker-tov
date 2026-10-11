@@ -3,6 +3,7 @@ package com.koby.bokertov
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 
@@ -144,4 +145,53 @@ object DebugLog {
 
     @Synchronized
     fun text(): String = if (lines.isEmpty()) "(עדיין אין)" else lines.reversed().joinToString("\n")
+}
+
+/**
+ * הטלפון משמיע צליל קטן בכל התחלת הקשבה. משתיקים את הצלילים האלה לרגע קצר סביב ההתחלה,
+ * ומחזירים מיד אחר כך. מוזיקה שמתנגנת לא מופרעת.
+ */
+object Earcon {
+    private val streams = intArrayOf(
+        AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM, AudioManager.STREAM_MUSIC
+    )
+    private val mutedByUs = HashSet<Int>()
+
+    private fun am(ctx: Context) = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private fun sp(ctx: Context) = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+
+    fun mute(ctx: Context) {
+        val a = am(ctx)
+        for (st in streams) {
+            if (st == AudioManager.STREAM_MUSIC && a.isMusicActive) continue
+            if (st in mutedByUs) continue
+            try {
+                if (!a.isStreamMute(st)) {
+                    a.adjustStreamVolume(st, AudioManager.ADJUST_MUTE, 0)
+                    mutedByUs.add(st)
+                }
+            } catch (e: Exception) { }
+        }
+        if (mutedByUs.isNotEmpty()) sp(ctx).edit().putBoolean("earcon_muted", true).apply()
+    }
+
+    fun restore(ctx: Context) {
+        if (mutedByUs.isEmpty()) return
+        val a = am(ctx)
+        for (st in mutedByUs.toList()) {
+            try { a.adjustStreamVolume(st, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
+        }
+        mutedByUs.clear()
+        sp(ctx).edit().putBoolean("earcon_muted", false).apply()
+    }
+
+    /** אם האפליקציה נסגרה בזמן שההשתקה הייתה פעילה, מחזירים את הצלילים. */
+    fun restoreIfStuck(ctx: Context) {
+        if (!sp(ctx).getBoolean("earcon_muted", false)) return
+        val a = am(ctx)
+        for (st in streams) {
+            try { if (a.isStreamMute(st)) a.adjustStreamVolume(st, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
+        }
+        sp(ctx).edit().putBoolean("earcon_muted", false).apply()
+    }
 }

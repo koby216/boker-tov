@@ -75,6 +75,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        if (!ListeningService.running) Earcon.restoreIfStuck(this)
         if (savedInstanceState == null) autoStart()
     }
 
