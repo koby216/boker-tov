@@ -232,7 +232,7 @@ class VoiceEngine(
         override fun onPartialResults(partialResults: Bundle?) {
             if (!running || speaking) return
             val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-            if (list.isEmpty()) return
+            if (list.isEmpty() || list.all { Text.norm(it).isEmpty() }) return
             if (state != St.WAKE) {
                 // הטלפון מחזיר את התשובה הסופית באיחור, לכן פועלים על החלקית אחרי רגע של שקט
                 lastPartial = list
@@ -345,7 +345,24 @@ class VoiceEngine(
         }
     }
 
+    private var blankCount = 0
+
     private fun handleResults(list: List<String>) {
+        // רעש רקע: תוצאה ריקה, או מילה בודדת שלא מובנת בשלב הבקשה. מתעלמים בשקט.
+        val texts = list.map { Text.norm(it) }
+        val noise = texts.all { it.isEmpty() } ||
+            (state == St.COMMAND && texts.all { it.isEmpty() || (!it.contains(" ") && Parser.parse(it) == null) })
+        if (noise) {
+            if (state == St.WAKE) {
+                main.postDelayed({ listen() }, 50)
+            } else {
+                blankCount++
+                if (blankCount >= 4) { blankCount = 0; noInput() }
+                else main.postDelayed({ listen() }, 100)
+            }
+            return
+        }
+        blankCount = 0
         DebugLog.add("שמעתי (${state.name}): ${list.joinToString(" | ")}")
         when (state) {
             St.WAKE -> {
