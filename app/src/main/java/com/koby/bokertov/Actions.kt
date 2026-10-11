@@ -83,8 +83,10 @@ class Actions(private val ctx: Context) {
     /** האם הטלפון מחובר עכשיו לרכב שנבחר. אם לא נבחר רכב, בודקים לפי הכללי. */
     fun carConnected(): Boolean {
         val saved = Prefs.carAddress(ctx)
-        if (saved.isEmpty()) return inCar()
-        if (Build.VERSION.SDK_INT < 28) return inCar()
+        val ui = ctx.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        if (ui.currentModeType == Configuration.UI_MODE_TYPE_CAR) return true
+        // בלי רכב שנבחר, לא מניחים שזה רכב רק כי מחוברות אוזניות או שעון בבלוטות'
+        if (saved.isEmpty() || Build.VERSION.SDK_INT < 28) return false
         return audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.address.equals(saved, ignoreCase = true) }
     }
 
