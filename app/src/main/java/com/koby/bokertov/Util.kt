@@ -44,7 +44,7 @@ object Prefs {
      * ברירת המחדל: phone = מרמקול הטלפון (עובד תמיד).
      * media = ברמקולי הרכב כשהרכב על מדיה. call = דרך ערוץ השיחות של הרכב (גם כשהרכב על רדיו).
      */
-    fun carVoice(@Suppress("UNUSED_PARAMETER") ctx: Context): String = "phone"
+    fun carVoice(@Suppress("UNUSED_PARAMETER") ctx: Context): String = "call"
 
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
