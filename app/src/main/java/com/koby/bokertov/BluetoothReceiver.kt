@@ -36,6 +36,27 @@ class BluetoothReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        /** התראה שקטה אחרי שהאפליקציה נסגרה: לחיצה עליה מפעילה הקשבה. */
+        fun showTap(ctx: Context) {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(
+                NotificationChannel("tap", "הפעלה מהירה", NotificationManager.IMPORTANCE_LOW)
+            )
+            val open = PendingIntent.getActivity(
+                ctx, 3, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val n = NotificationCompat.Builder(ctx, "tap")
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setContentTitle("בוקר טוב")
+                .setContentText("לחץ כאן כדי להקשיב")
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+            try { nm.notify(8, n) } catch (e: SecurityException) { }
+        }
+
         fun show(ctx: Context) {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(

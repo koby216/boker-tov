@@ -32,6 +32,10 @@ object Prefs {
     }
     fun setAssistantName(ctx: Context, v: String) = sp(ctx).edit().putString("name", v.trim()).apply()
 
+    /** האם להישאר מקשיבה ל"בוקר טוב" כל הזמן. כבוי = נסגרת ושותקת אחרי כל משימה. */
+    fun keepListening(ctx: Context): Boolean = sp(ctx).getBoolean("keep_listening", false)
+    fun setKeepListening(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("keep_listening", v).apply()
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =

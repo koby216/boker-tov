@@ -48,9 +48,13 @@ class ListeningService : Service() {
             return START_NOT_STICKY
         }
         startInForeground()
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).apply { cancel(7); cancel(8) }
         val announce = intent?.getBooleanExtra(EXTRA_ANNOUNCE, false) == true
         if (engine == null) {
-            val e = VoiceEngine(this) { stopSelf() }
+            val e = VoiceEngine(this, onFatal = { stopSelf() }, onIdle = {
+                BluetoothReceiver.showTap(this)
+                stopSelf()
+            })
             engine = e
             VoiceEngine.current = e
             running = true

@@ -21,7 +21,8 @@ import java.util.Locale
  */
 class VoiceEngine(
     private val ctx: Context,
-    private val onFatal: () -> Unit
+    private val onFatal: () -> Unit,
+    private val onIdle: () -> Unit
 ) {
     private enum class St { WAKE, COMMAND, CONFIRM, FREE, CHOOSE }
 
@@ -71,7 +72,12 @@ class VoiceEngine(
         if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
             onFatal(); return
         }
-        toWake()
+        if (Prefs.keepListening(ctx)) {
+            toWake()
+        } else {
+            // במצב שקט ממתינים להודעה "אני מקשיבה" מהמסך. אם לא מגיעה, נסגרים.
+            main.postDelayed({ if (!engaged) goIdle() }, 4000)
+        }
     }
 
     fun stop() {
@@ -99,6 +105,7 @@ class VoiceEngine(
 
     private fun speak(text: String, tries: Int = 0, then: (() -> Unit)? = null) {
         if (!running) return
+        engaged = true
         speaking = true
         onSpeakDone = then
         main.removeCallbacks(watchdog)
@@ -147,6 +154,7 @@ class VoiceEngine(
 
     private fun listen() {
         if (!running || speaking) return
+        engaged = true
         val r = rec ?: createRecognizer().also { rec = it } ?: run { onFatal(); return }
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -285,7 +293,23 @@ class VoiceEngine(
         state = St.WAKE
         attempts = 0
         pendingAsk = null; pendingText = null; pendingChoose = null
+        if (!Prefs.keepListening(ctx)) {
+            goIdle()
+            return
+        }
         main.postDelayed({ listen() }, 100)
+    }
+
+    private var engaged = false
+
+    /** סיימנו: נסגרים ושותקים. מפעילים שוב מהאייקון, מההתראה או בחיבור לרכב. */
+    private fun goIdle() {
+        if (!running) return
+        DebugLog.add("סיימתי, נסגרת")
+        main.removeCallbacks(watchdog)
+        main.removeCallbacks(partialTrigger)
+        main.removeCallbacks(wakeTrigger)
+        onIdle()
     }
 
     private fun handleResults(list: List<String>) {

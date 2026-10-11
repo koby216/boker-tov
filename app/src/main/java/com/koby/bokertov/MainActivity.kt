@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private val tick = object : Runnable {
         override fun run() {
             debugView.text = DebugLog.text()
+            updateStatus()
             ticker.postDelayed(this, 1500)
         }
     }
@@ -138,6 +139,19 @@ class MainActivity : AppCompatActivity() {
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(checks)
 
+        val keep = android.widget.Switch(this).apply {
+            text = "להישאר מקשיבה ל\"בוקר טוב\" כל הזמן"
+            textSize = 19f
+            isChecked = Prefs.keepListening(this@MainActivity)
+            setPadding(0, dp(10), 0, dp(10))
+            setOnCheckedChangeListener { _, on ->
+                Prefs.setKeepListening(this@MainActivity, on)
+                updateStatus()
+            }
+        }
+        col.addView(keep)
+        col.addView(text("כבוי (מומלץ): אחרי כל משימה היא נסגרת ושותקת, בלי ציפצופים. מפעילים שוב בלחיצה על האייקון או על ההתראה. דולק: היא מקשיבה כל הזמן, אבל אפשר לשמוע צלילים.", 16f))
+
         col.addView(text("הרכב שלי (בלוטות')", 20f, true))
         carView = text("", 18f)
         col.addView(carView)
@@ -222,11 +236,7 @@ class MainActivity : AppCompatActivity() {
         val car = Prefs.carName(this)
         carView.text = if (car.isEmpty()) "לא נבחר רכב" else "הרכב שנבחר: $car"
 
-        val on = ListeningService.running
-        val phrase = (Prefs.wakeWord(this) + " " + Prefs.assistantName(this)).trim()
-        status.text = if (on) "מקשיבה. אמור: $phrase" else "כבויה"
-        status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
-        mainButton.text = if (on) "כבה" else "הפעל"
+        updateStatus()
     }
 
     private fun chooseCar() {
@@ -282,6 +292,18 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun updateStatus() {
+        val on = ListeningService.running
+        val phrase = (Prefs.wakeWord(this) + " " + Prefs.assistantName(this)).trim()
+        status.text = when {
+            !on -> "כבויה. לחץ הפעל, או על האייקון"
+            Prefs.keepListening(this) -> "מקשיבה. אמור: $phrase"
+            else -> "מקשיבה. אמור מה לעשות"
+        }
+        status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
+        mainButton.text = if (on) "כבה" else "הפעל"
+    }
+
     private fun toggle() {
         if (ListeningService.running) {
             ListeningService.stop(this)
@@ -293,7 +315,7 @@ class MainActivity : AppCompatActivity() {
             askPermissions.launch(permissions)
             return
         }
-        ListeningService.start(this)
+        ListeningService.start(this, announce = true)
         mainButton.postDelayed({ refresh() }, 600)
         if (missing.isNotEmpty()) {
             // מתחילים להקשיב גם בלי כל ההרשאות, אבל חלק מהפעולות לא יעבדו
