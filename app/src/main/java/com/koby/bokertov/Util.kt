@@ -45,8 +45,11 @@ object Prefs {
      * media = ברמקולי הרכב כשהרכב על מדיה. call = דרך ערוץ השיחות של הרכב (גם כשהרכב על רדיו).
      */
     fun carVoice(ctx: Context): String =
-        sp(ctx).getString("car_voice", "phone") ?: "phone"
-    fun setCarVoice(ctx: Context, v: String) = sp(ctx).edit().putString("car_voice", v).apply()
+        // עד שבוחרים במפורש בגרסה הזו: מרמקול הטלפון (עובד תמיד)
+        if (!sp(ctx).getBoolean("car_voice_chosen", false)) "phone"
+        else sp(ctx).getString("car_voice", "phone") ?: "phone"
+    fun setCarVoice(ctx: Context, v: String) =
+        sp(ctx).edit().putString("car_voice", v).putBoolean("car_voice_chosen", true).apply()
 
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
