@@ -394,6 +394,13 @@ class VoiceEngine(
 
     // ---------- אירועים מבחוץ ----------
 
+    /** אומרת משפט (למשל "אני מקשיבה") ואז חוזרת להקשיב. */
+    fun announce(text: String, delayMs: Long = 0) {
+        main.postDelayed({
+            if (running && !speaking && state == St.WAKE) speak(text) { toWake() }
+        }, delayMs)
+    }
+
     fun onIncomingCall() {
         val now = System.currentTimeMillis()
         if (now - lastRing < 8000) return

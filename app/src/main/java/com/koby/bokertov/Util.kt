@@ -31,6 +31,15 @@ object Prefs {
     }
     fun setAssistantName(ctx: Context, v: String) = sp(ctx).edit().putString("name", v.trim()).apply()
 
+    fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
+    fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
+    fun setCar(ctx: Context, address: String, name: String) =
+        sp(ctx).edit().putString("car_addr", address).putString("car_name", name).apply()
+
+    /** מה האפליקציה אומרת כשהיא מתחילה להקשיב. */
+    fun listeningLine(ctx: Context, prefix: String): String =
+        "$prefix. אמור: " + (wakeWord(ctx) + " " + assistantName(ctx)).trim()
+
     /** הביטוי המלא שמעיר את האפליקציה, מנוקה להשוואה. */
     fun wakePhrase(ctx: Context): String =
         Text.norm(wakeWord(ctx) + " " + assistantName(ctx))

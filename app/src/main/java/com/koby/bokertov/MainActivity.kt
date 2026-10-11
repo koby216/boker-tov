@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.bluetooth.BluetoothManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -30,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mainButton: Button
     private lateinit var checks: LinearLayout
     private lateinit var debugView: TextView
+    private lateinit var carView: TextView
     private var testTts: TextToSpeech? = null
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -39,23 +42,45 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val permissions = arrayOf(
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.ANSWER_PHONE_CALLS,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.POST_NOTIFICATIONS
-    )
+    private val permissions: Array<String> = buildList {
+        add(Manifest.permission.RECORD_AUDIO)
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.CALL_PHONE)
+        add(Manifest.permission.ANSWER_PHONE_CALLS)
+        add(Manifest.permission.READ_PHONE_STATE)
+        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT >= 31) add(Manifest.permission.BLUETOOTH_CONNECT)
+    }.toTypedArray()
 
     private val askPermissions =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
             refresh()
+            // אם קיבלנו את המיקרופון, מתחילים להקשיב מיד
+            if (hasMic() && !ListeningService.running) startListening()
         }
+
+    private fun hasMic() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    /** מתחיל להקשיב ואומר "אני מקשיבה". אם אין עדיין הרשאה, מבקש אותה. */
+    private fun autoStart() {
+        if (hasMic()) startListening() else askPermissions.launch(permissions)
+    }
+
+    private fun startListening() {
+        ListeningService.start(this, announce = true)
+        mainButton.postDelayed({ refresh() }, 700)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        if (savedInstanceState == null) autoStart()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        autoStart()
     }
 
     override fun onResume() {
@@ -111,6 +136,12 @@ class MainActivity : AppCompatActivity() {
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(checks)
+
+        col.addView(text("הרכב שלי (בלוטות')", 20f, true))
+        carView = text("", 18f)
+        col.addView(carView)
+        col.addView(bigButton("בחר רכב") { chooseCar() })
+        col.addView(text("כשהטלפון מתחבר לרכב שבחרת, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". קודם חבר את הטלפון לרכב פעם אחת בהגדרות הבלוטות'.", 16f))
 
         col.addView(text("שם לאפליקציה (לא חובה)", 20f, true))
         col.addView(text("אם תוסיף שם, תגיד למשל \"בוקר טוב שם\". כך היא לא תתעורר כשאומרים בוקר טוב סתם למישהו בבית.", 17f))
@@ -187,11 +218,43 @@ class MainActivity : AppCompatActivity() {
             16f
         ))
 
+        val car = Prefs.carName(this)
+        carView.text = if (car.isEmpty()) "לא נבחר רכב" else "הרכב שנבחר: $car"
+
         val on = ListeningService.running
         val phrase = (Prefs.wakeWord(this) + " " + Prefs.assistantName(this)).trim()
         status.text = if (on) "מקשיבה. אמור: $phrase" else "כבויה"
         status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
         mainButton.text = if (on) "כבה" else "הפעל"
+    }
+
+    private fun chooseCar() {
+        if (Build.VERSION.SDK_INT >= 31 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+        ) {
+            askPermissions.launch(permissions)
+            return
+        }
+        val devices = try {
+            (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter?.bondedDevices?.toList().orEmpty()
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+        if (devices.isEmpty()) {
+            android.widget.Toast.makeText(
+                this, "לא נמצאו מכשירי בלוטות' מחוברים בעבר. חבר את הטלפון לרכב בהגדרות הבלוטות' ונסה שוב.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        val names = devices.map { it.name ?: it.address }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("איזה מהם הרכב שלך?")
+            .setItems(names) { _, i ->
+                Prefs.setCar(this, devices[i].address, names[i])
+                refresh()
+            }
+            .show()
     }
 
     private fun testVoice() {

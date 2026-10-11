@@ -29,6 +29,17 @@ class ListeningService : Service() {
         }
     }
 
+    private val btReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            i ?: return
+            if (i.action == android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED && CarLink.isMyCar(this@ListeningService, i)) {
+                DebugLog.add("הטלפון התחבר לרכב")
+                // מחכים שהאודיו של הרכב יתחבר כדי שהקול ישמע ברמקולים
+                engine?.announce(Prefs.listeningLine(this@ListeningService, "הופעלתי"), 3500)
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -37,6 +48,7 @@ class ListeningService : Service() {
             return START_NOT_STICKY
         }
         startInForeground()
+        val announce = intent?.getBooleanExtra(EXTRA_ANNOUNCE, false) == true
         if (engine == null) {
             val e = VoiceEngine(this) { stopSelf() }
             engine = e
@@ -47,8 +59,14 @@ class ListeningService : Service() {
                 IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED),
                 ContextCompat.RECEIVER_EXPORTED
             )
+            ContextCompat.registerReceiver(
+                this, btReceiver,
+                IntentFilter(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED),
+                ContextCompat.RECEIVER_EXPORTED
+            )
             e.start()
         }
+        if (announce) engine?.announce(Prefs.listeningLine(this, "אני מקשיבה"), 500)
         return START_STICKY
     }
 
@@ -77,6 +95,7 @@ class ListeningService : Service() {
 
     override fun onDestroy() {
         try { unregisterReceiver(callReceiver) } catch (e: Exception) { }
+        try { unregisterReceiver(btReceiver) } catch (e: Exception) { }
         engine?.stop()
         engine = null
         VoiceEngine.current = null
@@ -87,12 +106,16 @@ class ListeningService : Service() {
     companion object {
         private const val CHANNEL = "listening"
         private const val ACTION_STOP = "com.koby.bokertov.STOP"
+        private const val EXTRA_ANNOUNCE = "announce"
 
         @Volatile
         var running = false
 
-        fun start(ctx: Context) {
-            ContextCompat.startForegroundService(ctx, Intent(ctx, ListeningService::class.java))
+        fun start(ctx: Context, announce: Boolean = false) {
+            ContextCompat.startForegroundService(
+                ctx,
+                Intent(ctx, ListeningService::class.java).putExtra(EXTRA_ANNOUNCE, announce)
+            )
         }
 
         fun stop(ctx: Context) {
