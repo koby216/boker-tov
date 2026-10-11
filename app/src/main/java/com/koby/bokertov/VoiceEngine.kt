@@ -166,9 +166,9 @@ class VoiceEngine(
             // בהמתנה למילת ההפעלה אפשר לתת לזיהוי להמשיך לשמוע זמן ארוך (המילה מזוהה מהחלקי),
             // וכך יש פחות התחלות חוזרות ופחות צלילים של הטלפון
             val waiting = state == St.WAKE
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 3500L else 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 3000L else 800L)
-            if (waiting) putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)
+            // זמני סיום קצרים-בינוניים: הבקשה המלאה חייבת להגיע מהר, לפני שההקשבה מתחילה מחדש
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 1800L else 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 1500L else 800L)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
