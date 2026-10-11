@@ -423,6 +423,17 @@ class Actions(private val ctx: Context) {
     }
 
     private fun timer(seconds: Int, label: String): Outcome {
+        if (label.isNotBlank()) {
+            // תזכורת עם טקסט: מצלצלת ומקריאה בקול, ולכן קובעים אותה באפליקציה עצמה
+            val mins0 = seconds / 60
+            val spoken0 = when {
+                seconds < 60 -> "$seconds שניות"
+                seconds % 3600 == 0 -> "${seconds / 3600} שעות"
+                else -> "$mins0 דקות"
+            }
+            Reminders.add(ctx, System.currentTimeMillis() + seconds * 1000L, label)
+            return Outcome.Say("בסדר, אזכיר לך $label בעוד $spoken0")
+        }
         val i = Intent(AlarmClock.ACTION_SET_TIMER).apply {
             putExtra(AlarmClock.EXTRA_LENGTH, seconds)
             putExtra(AlarmClock.EXTRA_SKIP_UI, true)
@@ -441,6 +452,15 @@ class Actions(private val ctx: Context) {
     }
 
     private fun alarm(h: Int, m: Int, label: String = ""): Outcome {
+        if (label.isNotBlank()) {
+            val c = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, h); set(Calendar.MINUTE, m); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
+            }
+            Reminders.add(ctx, c.timeInMillis, label)
+            val mm0 = if (m == 0) "בדיוק" else "ו$m דקות"
+            return Outcome.Say("בסדר, אזכיר לך $label בשעה $h $mm0")
+        }
         val i = Intent(AlarmClock.ACTION_SET_ALARM).apply {
             putExtra(AlarmClock.EXTRA_HOUR, h)
             putExtra(AlarmClock.EXTRA_MINUTES, m)
