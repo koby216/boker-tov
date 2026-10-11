@@ -106,6 +106,7 @@ class VoiceEngine(
     private fun speak(text: String, tries: Int = 0, then: (() -> Unit)? = null) {
         if (!running) return
         engaged = true
+        main.removeCallbacks(idleTimer)
         speaking = true
         onSpeakDone = then
         main.removeCallbacks(watchdog)
@@ -293,11 +294,14 @@ class VoiceEngine(
         state = St.WAKE
         attempts = 0
         pendingAsk = null; pendingText = null; pendingChoose = null
-        if (!Prefs.keepListening(ctx)) {
-            goIdle()
-            return
-        }
+        main.removeCallbacks(idleTimer)
+        // כשלא מוגדר להישאר מקשיבה: אחרי 2 דקות בלי פעילות נכנסים למצב כבוי
+        if (!Prefs.keepListening(ctx)) main.postDelayed(idleTimer, 120_000L)
         main.postDelayed({ listen() }, 100)
+    }
+
+    private val idleTimer = Runnable {
+        if (running && !speaking && state == St.WAKE) goIdle()
     }
 
     private var engaged = false
@@ -389,6 +393,7 @@ class VoiceEngine(
         val rest = hit.substringAfter(phrase).trim()
         val cmd = if (rest.isNotEmpty()) Parser.parse(rest) else null
         DebugLog.add("זיהיתי את מילת ההפעלה" + if (rest.isNotEmpty()) " ואחריה: $rest" else "")
+        main.removeCallbacks(idleTimer)
         stopRec()
         if (cmd != null) runCommand(cmd) else {
             state = St.COMMAND

@@ -77,12 +77,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         buildUi()
         if (!ListeningService.running) Earcon.restoreIfStuck(this)
-        if (savedInstanceState == null) autoStart()
+        if (savedInstanceState == null && !intent.getBooleanExtra(EXTRA_IDLE, false)) autoStart()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        autoStart()
+        setIntent(intent)
+        // כשהמסך מופיע אחרי שהיא נכבתה, לא מפעילים מחדש לבד: מחכים ללחיצה על הפעל
+        if (intent.getBooleanExtra(EXTRA_IDLE, false)) refresh() else autoStart()
+    }
+
+    companion object {
+        const val EXTRA_IDLE = "idle"
     }
 
     override fun onResume() {
@@ -150,7 +156,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         col.addView(keep)
-        col.addView(text("כבוי (מומלץ): אחרי כל משימה היא נסגרת ושותקת, בלי ציפצופים. מפעילים שוב בלחיצה על האייקון או על ההתראה. דולק: היא מקשיבה כל הזמן, אבל אפשר לשמוע צלילים.", 16f))
+        col.addView(text("כבוי (מומלץ): אחרי משימה היא ממשיכה להקשיב 2 דקות, ואז נכבית ושותקת. מפעילים שוב בלחיצה על הפעל, על האייקון או על ההתראה. דולק: היא מקשיבה כל הזמן, אבל אפשר לשמוע צלילים.", 16f))
 
         col.addView(text("הרכב שלי (בלוטות')", 20f, true))
         carView = text("", 18f)

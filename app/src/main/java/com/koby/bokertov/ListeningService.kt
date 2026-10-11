@@ -53,6 +53,7 @@ class ListeningService : Service() {
         if (engine == null) {
             val e = VoiceEngine(this, onFatal = { stopSelf() }, onIdle = {
                 BluetoothReceiver.showTap(this)
+                showMainScreen()
                 stopSelf()
             })
             engine = e
@@ -72,6 +73,20 @@ class ListeningService : Service() {
         }
         if (announce) engine?.announceThenListen("אני מקשיבה", 500)
         return START_STICKY
+    }
+
+    /** מציגה את המסך הראשי (כבויה, הפעל), חוץ מבנסיעה כדי לא להסתיר ניווט. */
+    private fun showMainScreen() {
+        try {
+            if (Actions(this).inCar()) return
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(MainActivity.EXTRA_IDLE, true)
+            )
+        } catch (e: Exception) {
+            DebugLog.add("לא הצלחתי להציג את המסך הראשי")
+        }
     }
 
     private fun startInForeground() {
