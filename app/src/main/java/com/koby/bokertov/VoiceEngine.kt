@@ -120,6 +120,7 @@ class VoiceEngine(
         main.removeCallbacks(partialTrigger)
         main.removeCallbacks(restoreSounds)
         Earcon.restore(ctx)
+        if (tries == 0) ensureAudible()
         stopRec()
         DebugLog.add("אומרת: $text")
         if (tries == 0) {
@@ -157,6 +158,26 @@ class VoiceEngine(
             main.removeCallbacks(speakTimeout)
             main.postDelayed({ speakFinished() }, 300)
         }
+    }
+
+    /** אם זרם המדיה מושתק או על אפס (למשל השתקה שנתקעה), מחזירים אותו, אחרת הדיבור לא ישמע בכלל. */
+    private fun ensureAudible() {
+        try {
+            val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val st = AudioManager.STREAM_MUSIC
+            val max = am.getStreamMaxVolume(st)
+            var vol = am.getStreamVolume(st)
+            if (am.isStreamMute(st)) {
+                am.adjustStreamVolume(st, AudioManager.ADJUST_UNMUTE, 0)
+                DebugLog.add("זרם המדיה היה מושתק, החזרתי")
+                vol = am.getStreamVolume(st)
+            }
+            if (vol == 0) {
+                am.setStreamVolume(st, (max * 0.5f).toInt().coerceAtLeast(1), 0)
+                DebugLog.add("עוצמת המדיה הייתה אפס, הגברתי")
+            }
+            DebugLog.add("עוצמת מדיה: ${am.getStreamVolume(st)} מתוך $max")
+        } catch (e: Exception) { }
     }
 
     private fun speakFinished() {
