@@ -233,13 +233,20 @@ object Earcon {
 
     fun mute(ctx: Context) {
         val a = am(ctx)
+        // כשהקול יוצא בבלוטות' (רכב, אוזניות), לא משתיקים את זרם המוזיקה: ההשתקה עלולה להישאר ולהשתיק גם את הדיבור
+        val bt = try {
+            a.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+            }
+        } catch (e: Exception) { false }
         // אם התחילה מוזיקה בזמן שהשתקנו, מחזירים אותה מיד
-        if (a.isMusicActive && AudioManager.STREAM_MUSIC in mutedByUs) {
+        if ((a.isMusicActive || bt) && AudioManager.STREAM_MUSIC in mutedByUs) {
             try { a.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
             mutedByUs.remove(AudioManager.STREAM_MUSIC)
         }
         for (st in streams) {
-            if (st == AudioManager.STREAM_MUSIC && a.isMusicActive) continue
+            if (st == AudioManager.STREAM_MUSIC && (a.isMusicActive || bt)) continue
             if (st in mutedByUs) continue
             try {
                 if (!a.isStreamMute(st)) {
