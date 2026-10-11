@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.AlarmClock
+import android.provider.Settings
 import android.provider.MediaStore
 import android.app.UiModeManager
 import android.telecom.TelecomManager
@@ -121,6 +122,7 @@ class Actions(private val ctx: Context) {
         is Cmd.Timer -> timer(cmd.seconds, cmd.label)
         is Cmd.Alarm -> alarm(cmd.hour, cmd.minute, cmd.label)
         is Cmd.Remind -> remind(cmd.what)
+        is Cmd.InCar -> carCheck()
         is Cmd.TellTime -> Outcome.Say(timeText())
         is Cmd.TellDate -> Outcome.Say(dateText())
         is Cmd.TorchOn -> torch(true)
@@ -385,6 +387,20 @@ class Actions(private val ctx: Context) {
             Outcome.Silent
         } catch (e: Exception) {
             Outcome.Say("לא הצלחתי להפעיל את הפנס")
+        }
+    }
+
+    /** "אני ברכב": בודקת אם הטלפון מחובר לרכב שנבחר. אם לא, אומרת להתחבר ופותחת את הגדרות הבלוטות'. */
+    private fun carCheck(): Outcome {
+        val name = Prefs.carName(ctx)
+        if (Prefs.carAddress(ctx).isEmpty()) {
+            return Outcome.Ask("עוד לא בחרת רכב. לפתוח את הגדרות הבלוטות' כדי להתחבר לרכב?", {
+                Outcome.Say("פותחת. התחבר לרכב") { launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            })
+        }
+        if (carConnected()) return Outcome.Say("מחוברת ל$name. אפשר לדבר איתי")
+        return Outcome.Say("הטלפון לא מחובר לרכב. התחבר לרכב") {
+            launch(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
         }
     }
 

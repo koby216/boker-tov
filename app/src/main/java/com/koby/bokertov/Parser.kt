@@ -24,6 +24,7 @@ sealed class Cmd {
     object Prev : Cmd()
     object Photo : Cmd()
     object Help : Cmd()
+    object InCar : Cmd()
     data class Call(val name: String) : Cmd()
     data class Whatsapp(val rest: String) : Cmd()
     data class Navigate(val dest: String) : Cmd()
@@ -180,6 +181,10 @@ object Parser {
             return Cmd.Answer
         if (has("תדחה", "לדחות", "תנתק", "סיים שיחה", "תסיים שיחה", "נתקי") || t == "דחה" || t == "נתק")
             return Cmd.Reject
+
+        if (has("מצב רכב", "אני ברכב", "אני באוטו", "נכנסתי לרכב", "נכנסתי לאוטו", "אני נכנס לרכב",
+                "אני נכנסת לרכב", "אני נוסע", "אני נוסעת"))
+            return Cmd.InCar
 
         verb("תתקשר", "התקשר", "תתקשרי", "התקשרי", "תחייג", "חייג", "תחייגי", "חייגי", "תצלצל", "צלצל")
             ?.let { return Cmd.Call(t.removePrefix(it).trim()) }

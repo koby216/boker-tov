@@ -472,7 +472,7 @@ class VoiceEngine(
             val c = Parser.parse(raw) ?: continue
             val ok = c is Cmd.Call || c is Cmd.Whatsapp || c is Cmd.Navigate || c is Cmd.PlayMusic ||
                 c is Cmd.Timer || c is Cmd.Alarm || c is Cmd.TellTime || c is Cmd.TellDate ||
-                c is Cmd.OpenApp || c is Cmd.ReadMessages || c is Cmd.Remind
+                c is Cmd.OpenApp || c is Cmd.ReadMessages || c is Cmd.Remind || c is Cmd.InCar
             if (ok) return Text.norm(raw)
         }
         return null
