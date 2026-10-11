@@ -95,7 +95,7 @@ class MessageListener : NotificationListenerService() {
 
         val replyAction = n.actions?.firstOrNull { a -> a.remoteInputs?.isNotEmpty() == true }
         MessageStore.add(title, text, replyAction)
-        DebugLog.add("הגיעה הודעה מ$title")
+        DebugLog.add("הגיעה הודעה מ$title: ${text.take(25)}")
         Handler(Looper.getMainLooper()).post {
             val engine = VoiceEngine.current
             if (engine != null) engine.onNewMessage(title, text)

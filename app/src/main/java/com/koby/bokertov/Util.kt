@@ -167,6 +167,8 @@ object MessageStore {
         if (echoText.isEmpty()) return false
         val age = System.currentTimeMillis() - echoAt
         if (age > 120000) return false
+        // ברגעים הראשונים אחרי שליחה, וואטסאפ מציגה התראה בשם כללי (למשל "מאת/ה"): גם היא הד
+        if (age < 8000) return true
         val a = Text.norm(sender)
         val b = Text.norm(echoSender)
         val same = a.isNotEmpty() && b.isNotEmpty() && (a == b || a.contains(b) || b.contains(a))
