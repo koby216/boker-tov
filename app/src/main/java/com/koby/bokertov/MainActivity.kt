@@ -75,6 +75,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instance = this
         buildUi()
         if (!ListeningService.running) Earcon.restoreIfStuck(this)
         if (savedInstanceState == null) routeIntent(intent)
@@ -102,6 +103,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        @Volatile
+        var instance: MainActivity? = null
         const val EXTRA_IDLE = "idle"
         const val EXTRA_SENDER = "msg_sender"
         const val EXTRA_TEXT = "msg_text"
@@ -111,6 +114,11 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refresh()
         ticker.post(tick)
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
     }
 
     override fun onPause() {

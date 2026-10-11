@@ -73,7 +73,7 @@ class ListeningService : Service() {
         }
         val msgSender = intent?.getStringExtra(EXTRA_SENDER)
         val msgText = intent?.getStringExtra(EXTRA_TEXT)
-        if (msgSender != null && msgText != null) engine?.askToRead(msgSender, msgText, 700)
+        if (msgSender != null && msgText != null) engine?.askToRead(msgSender, msgText, 700, popup = true)
         else if (announce) engine?.announceThenListen("אני מקשיבה", 500)
         return START_STICKY
     }

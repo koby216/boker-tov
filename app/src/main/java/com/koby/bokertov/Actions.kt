@@ -80,6 +80,14 @@ class Actions(private val ctx: Context) {
         }
     }
 
+    /** האם הטלפון מחובר עכשיו לרכב שנבחר. אם לא נבחר רכב, בודקים לפי הכללי. */
+    fun carConnected(): Boolean {
+        val saved = Prefs.carAddress(ctx)
+        if (saved.isEmpty()) return inCar()
+        if (Build.VERSION.SDK_INT < 28) return inCar()
+        return audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.address.equals(saved, ignoreCase = true) }
+    }
+
     private fun screenControl(): ControlAccessibilityService? = ControlAccessibilityService.instance
 
     private val carBlock = Outcome.Say("בזמן נסיעה אני לא עושה את זה")

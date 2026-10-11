@@ -294,6 +294,11 @@ class VoiceEngine(
         state = St.WAKE
         attempts = 0
         pendingAsk = null; pendingText = null; pendingChoose = null
+        if (popupFlow) {
+            // המסך קפץ בגלל הודעה: אחרי שסיימנו, חוזרים לאפליקציה הקודמת (למשל ניווט)
+            popupFlow = false
+            MainActivity.instance?.moveTaskToBack(true)
+        }
         main.removeCallbacks(idleTimer)
         // כשלא מוגדר להישאר מקשיבה: אחרי 2 דקות בלי פעילות נכנסים למצב כבוי
         if (!Prefs.keepListening(ctx)) main.postDelayed(idleTimer, 120_000L)
@@ -301,8 +306,14 @@ class VoiceEngine(
     }
 
     private val idleTimer = Runnable {
-        if (running && !speaking && state == St.WAKE) goIdle(announce = true)
+        if (running && !speaking && state == St.WAKE) {
+            // ברכב נשארים מקשיבים, כדי שאפשר יהיה לשאול "להקריא?" כשמגיעה הודעה
+            if (actions.carConnected()) main.postDelayed(idleTimer, 120_000L)
+            else goIdle(announce = true)
+        }
     }
+
+    private var popupFlow = false
 
     private var engaged = false
 
@@ -505,9 +516,10 @@ class VoiceEngine(
     }
 
     /** שואלת "הודעה מ... להקריא?" ואם מאשרים: מקריאה, ואז שואלת אם לענות. */
-    fun askToRead(sender: String, text: String, delayMs: Long = 0) {
+    fun askToRead(sender: String, text: String, delayMs: Long = 0, popup: Boolean = false) {
         main.postDelayed({
             if (running && !speaking) {
+                popupFlow = popup
                 deliver(
                     Outcome.Ask(
                         "הודעה מ$sender. להקריא?",

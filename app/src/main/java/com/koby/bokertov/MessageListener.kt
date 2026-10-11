@@ -75,10 +75,6 @@ class MessageListener : NotificationListenerService() {
     /** האפליקציה כבויה: מביאים אותה למסך כדי שתשאל "להקריא?". בנסיעה רק אומרים שהגיעה הודעה. */
     private fun openAppForMessage(title: String, text: String) {
         try {
-            if (Actions(this).inCar()) {
-                QuickSpeak.say(this, "הגיעה הודעה מ$title")
-                return
-            }
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
