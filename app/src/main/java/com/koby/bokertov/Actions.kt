@@ -295,6 +295,22 @@ class Actions(private val ctx: Context) {
         }
     }
 
+    /** אחרי שליחה: חוזרים למסך הראשי של האפליקציה. ברכב חוזרים אחורה, כדי לא להסתיר את הניווט. */
+    private fun leaveWhatsapp(svc: ControlAccessibilityService) {
+        if (carConnected()) {
+            svc.back()
+            main.postDelayed({
+                if (svc.currentPackage()?.startsWith("com.whatsapp") == true) svc.back()
+            }, 800)
+        } else {
+            launch(
+                Intent(ctx, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(MainActivity.EXTRA_IDLE, true)
+            )
+        }
+    }
+
     private fun trySend(attempt: Int) {
         if (attempt == 0) DebugLog.add("מנסה ללחוץ על שליחה")
         val svc = screenControl()
@@ -305,7 +321,11 @@ class Actions(private val ctx: Context) {
         }
         if (svc.clickWhatsappSend()) {
             DebugLog.add("לחצתי על שליחה")
-            say("שלחתי")
+            // נותנים לשליחה להסתיים, ואז יוצאים מוואטסאפ וחוזרים למסך הראשי
+            main.postDelayed({
+                leaveWhatsapp(svc)
+                say("שלחתי")
+            }, 1200)
             return
         }
         if (attempt < 5) {
