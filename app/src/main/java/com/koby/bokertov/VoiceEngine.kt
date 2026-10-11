@@ -123,6 +123,22 @@ class VoiceEngine(
         stopRec()
         DebugLog.add("אומרת: $text")
         if (tries == 0) {
+            // לאן הטלפון מנתב את הקול: רמקול הטלפון, בלוטות' למוזיקה (A2DP), או בלוטות' לשיחות (SCO)
+            try {
+                val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val names = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map {
+                    when (it.type) {
+                        android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "רמקול טלפון"
+                        android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "בלוטות' מוזיקה"
+                        android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "בלוטות' שיחות"
+                        android.media.AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "אוזנייה"
+                        else -> "סוג ${it.type}"
+                    }
+                }.distinct()
+                DebugLog.add("יציאות שמע: ${names.joinToString(", ")}")
+            } catch (e: Exception) { }
+        }
+        if (tries == 0) {
             try { Toast.makeText(ctx, text, Toast.LENGTH_LONG).show() } catch (e: Exception) { }
         }
         val t = tts
