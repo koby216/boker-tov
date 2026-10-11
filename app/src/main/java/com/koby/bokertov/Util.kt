@@ -187,6 +187,11 @@ object Earcon {
 
     fun mute(ctx: Context) {
         val a = am(ctx)
+        // אם התחילה מוזיקה בזמן שהשתקנו, מחזירים אותה מיד
+        if (a.isMusicActive && AudioManager.STREAM_MUSIC in mutedByUs) {
+            try { a.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0) } catch (e: Exception) { }
+            mutedByUs.remove(AudioManager.STREAM_MUSIC)
+        }
         for (st in streams) {
             if (st == AudioManager.STREAM_MUSIC && a.isMusicActive) continue
             if (st in mutedByUs) continue

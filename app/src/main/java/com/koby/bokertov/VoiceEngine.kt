@@ -94,7 +94,7 @@ class VoiceEngine(
 
     private fun beep(tone: Int = ToneGenerator.TONE_PROP_BEEP) {
         try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, 80).startTone(tone, 150)
+            ToneGenerator(AudioManager.STREAM_MUSIC, 35).startTone(tone, 120)
         } catch (e: Exception) { }
     }
 
@@ -174,7 +174,8 @@ class VoiceEngine(
         try {
             Earcon.mute(ctx)
             main.removeCallbacks(restoreSounds)
-            main.postDelayed(restoreSounds, 900)
+            // בהמתנה ל"בוקר טוב" (עד 2 דקות) משאירים את הצלילים של הטלפון מושתקים
+            if (!holdMute()) main.postDelayed(restoreSounds, 900)
             r.startListening(i)
             // אם הזיהוי לא מגיב בכלל, מתחילים אותו מחדש
             main.removeCallbacks(watchdog)
@@ -196,6 +197,9 @@ class VoiceEngine(
 
     private val restoreSounds = Runnable { Earcon.restore(ctx) }
 
+    /** משאירים את הצלילים מושתקים רק כשממתינים ל"בוקר טוב" והיא עומדת להיסגר לבד. */
+    private fun holdMute(): Boolean = state == St.WAKE && !Prefs.keepListening(ctx)
+
     private var wakeDelay = 150L
 
     private val watchdog = Runnable {
@@ -215,7 +219,7 @@ class VoiceEngine(
         override fun onReadyForSpeech(params: Bundle?) {
             main.removeCallbacks(watchdog)
             main.postDelayed(watchdog, 12000)
-            Earcon.restore(ctx)
+            if (!holdMute()) Earcon.restore(ctx)
             if (beepOnReady) { beepOnReady = false; beep() }
         }
         override fun onBeginningOfSpeech() {
