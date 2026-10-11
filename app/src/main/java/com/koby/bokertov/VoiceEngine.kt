@@ -210,7 +210,11 @@ class VoiceEngine(
                 return
             }
             val phrase = Prefs.wakePhrase(ctx)
-            val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) } ?: return
+            val hit = list.map { Text.norm(it) }.firstOrNull { it.contains(phrase) }
+            if (hit == null) {
+                DebugLog.add("(חלקי) ${list.first()}")
+                return
+            }
             // מחכים רגע קצר למקרה שממשיכים לדבר ("בוקר טוב תתקשר לדני")
             pendingWakeText = hit
             main.removeCallbacks(wakeTrigger)
@@ -263,9 +267,7 @@ class VoiceEngine(
     }
 
     private fun handleResults(list: List<String>) {
-        if (state != St.WAKE || list.any { Text.norm(it).contains(Prefs.wakePhrase(ctx)) }) {
-            DebugLog.add("שמעתי (${state.name}): ${list.first()}")
-        }
+        DebugLog.add("שמעתי (${state.name}): ${list.joinToString(" | ")}")
         when (state) {
             St.WAKE -> {
                 val phrase = Prefs.wakePhrase(ctx)
