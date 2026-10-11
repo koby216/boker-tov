@@ -154,8 +154,12 @@ class VoiceEngine(
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
+            // בהמתנה למילת ההפעלה אפשר לתת לזיהוי להמשיך לשמוע זמן ארוך (המילה מזוהה מהחלקי),
+            // וכך יש פחות התחלות חוזרות ופחות צלילים של הטלפון
+            val waiting = state == St.WAKE
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 3500L else 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, if (waiting) 3000L else 800L)
+            if (waiting) putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 6000L)
             if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         try {
@@ -277,6 +281,7 @@ class VoiceEngine(
     // ---------- ניהול השיחה ----------
 
     private fun toWake() {
+        quietFirst = false
         state = St.WAKE
         attempts = 0
         pendingAsk = null; pendingText = null; pendingChoose = null
@@ -396,6 +401,12 @@ class VoiceEngine(
 
     /** לא שמעתי או לא הבנתי: מבקשים שוב, אחר כך רמז, ואז מוותרים בנעימות. */
     private fun noInput(heard: Boolean = false) {
+        if (quietFirst && !heard) {
+            quietFirst = false
+            toWake()
+            return
+        }
+        quietFirst = false
         attempts++
         when (attempts) {
             1 -> speak(if (heard) "לא הבנתי, אפשר שוב?" else "לא שמעתי, אפשר שוב?") { listen() }
@@ -412,6 +423,22 @@ class VoiceEngine(
     }
 
     // ---------- אירועים מבחוץ ----------
+
+    private var quietFirst = false
+
+    /** אומרת משפט (למשל "אני מקשיבה") ואז מחכה ישר לפקודה, בלי מילת הפעלה. */
+    fun announceThenListen(text: String, delayMs: Long = 0) {
+        main.postDelayed({
+            if (running && !speaking) {
+                speak(text) {
+                    state = St.COMMAND
+                    attempts = 0
+                    quietFirst = true
+                    listen()
+                }
+            }
+        }, delayMs)
+    }
 
     /** אומרת משפט (למשל "אני מקשיבה") ואז חוזרת להקשיב. */
     fun announce(text: String, delayMs: Long = 0) {

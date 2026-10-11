@@ -66,7 +66,7 @@ class ListeningService : Service() {
             )
             e.start()
         }
-        if (announce) engine?.announce(Prefs.listeningLine(this, "אני מקשיבה"), 500)
+        if (announce) engine?.announceThenListen("אני מקשיבה", 500)
         return START_STICKY
     }
 
