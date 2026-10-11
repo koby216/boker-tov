@@ -108,6 +108,23 @@ class ControlAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /** לוחץ על כפתור השליחה של וואטסאפ: קודם לפי המזהה שלו, ואחר כך לפי השם "שליחה". */
+    fun clickWhatsappSend(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        if (root.packageName?.toString()?.startsWith("com.whatsapp") != true) return false
+        for (id in listOf("com.whatsapp:id/send", "com.whatsapp.w4b:id/send")) {
+            val nodes = root.findAccessibilityNodeInfosByViewId(id)
+            if (nodes.isNotEmpty() && click(nodes[0])) return true
+        }
+        val all = ArrayList<AccessibilityNodeInfo>()
+        collect(root, all)
+        val names = setOf("שליחה", "שלח", "send")
+        val btn = all.firstOrNull {
+            it.contentDescription?.toString()?.let { d -> Text.norm(d) in names } == true
+        }
+        return btn != null && click(btn)
+    }
+
     fun typeText(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
         var target: AccessibilityNodeInfo? = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)

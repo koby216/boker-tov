@@ -252,9 +252,20 @@ class Actions(private val ctx: Context) {
     }
 
     private fun trySend(attempt: Int) {
-        val svc = screenControl() ?: return
-        if (svc.clickAny(listOf("שלח", "Send"))) return
-        if (attempt < 3) main.postDelayed({ trySend(attempt + 1) }, 1500)
+        val svc = screenControl()
+        if (svc == null) {
+            DebugLog.add("אין נגישות פעילה, לא יכולה ללחוץ על שליחה")
+            return
+        }
+        if (svc.clickWhatsappSend()) {
+            DebugLog.add("לחצתי על שליחה")
+            return
+        }
+        if (attempt < 5) {
+            main.postDelayed({ trySend(attempt + 1) }, 1200)
+        } else {
+            DebugLog.add("לא מצאתי את כפתור השליחה בוואטסאפ")
+        }
     }
 
     // ---------- ניווט, מוזיקה, שעון ----------
