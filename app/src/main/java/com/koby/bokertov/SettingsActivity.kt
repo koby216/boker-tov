@@ -124,6 +124,15 @@ class SettingsActivity : AppCompatActivity() {
         carView = text("", 18f)
         col.addView(carView)
         col.addView(bigButton("בחר רכב") { chooseCar() })
+        val phoneSp = android.widget.Switch(this).apply {
+            text = "לדבר ברמקול של הטלפון גם כשמחובר לרכב"
+            textSize = 19f
+            isChecked = Prefs.phoneSpeaker(this@SettingsActivity)
+            setPadding(0, dp(10), 0, dp(10))
+            setOnCheckedChangeListener { _, on -> Prefs.setPhoneSpeaker(this@SettingsActivity, on) }
+        }
+        col.addView(phoneSp)
+        col.addView(text("דלוק: אם ברכב לא שומעים אותי, אדבר מהרמקול של הטלפון.", 16f))
         col.addView(text("איך בוחרים: 1. מחברים את הטלפון לרכב בבלוטות'. 2. לוחצים \"בחר רכב\". 3. מאשרים שזה הרכב שלך. אחר כך, כשהטלפון מתחבר לרכב, האפליקציה אומרת \"הופעלתי, אמור בוקר טוב\". אם הקול לא נשמע ברכב, בוחרים ברכב מקור קול \"בלוטות'\".", 16f))
 
         col.addView(text("מה אפשר להגיד", 22f, true))

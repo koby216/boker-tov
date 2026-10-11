@@ -86,6 +86,7 @@ class VoiceEngine(
         running = false
         UiState.face = Face.OFF
         UiState.caption = ""
+        routeToPhone(false)
         Earcon.restore(ctx)
         main.removeCallbacksAndMessages(null)
         stopRec()
@@ -149,6 +150,7 @@ class VoiceEngine(
             return
         }
         main.removeCallbacks(speakTimeout)
+        routeToPhone(Prefs.phoneSpeaker(ctx) && actions.carConnected())
         // רשת ביטחון: אם הקול נתקע, ממשיכים אחרי זמן סביר
         main.postDelayed(speakTimeout, 4000L + text.length * 120L)
         curUtt = "u" + System.nanoTime()
@@ -180,9 +182,41 @@ class VoiceEngine(
         } catch (e: Exception) { }
     }
 
+    private var routedToPhone = false
+
+    /** מכריחים את הדיבור לצאת מרמקול הטלפון (גם כשהרכב מחובר), ומחזירים אחרי שהיא סיימה לדבר. */
+    private fun routeToPhone(on: Boolean) {
+        if (on == routedToPhone) return
+        try {
+            val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val attrs = android.media.AudioAttributes.Builder()
+                .setUsage(if (on) android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION else android.media.AudioAttributes.USAGE_MEDIA)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            if (on) {
+                val st = AudioManager.STREAM_VOICE_CALL
+                val max = am.getStreamMaxVolume(st)
+                if (am.getStreamVolume(st) < max * 0.7f) am.setStreamVolume(st, (max * 0.8f).toInt(), 0)
+                am.mode = AudioManager.MODE_IN_COMMUNICATION
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = true
+                DebugLog.add("מדברת ברמקול הטלפון")
+            } else {
+                @Suppress("DEPRECATION")
+                am.isSpeakerphoneOn = false
+                am.mode = AudioManager.MODE_NORMAL
+            }
+            tts?.setAudioAttributes(attrs)
+            routedToPhone = on
+        } catch (e: Exception) {
+            DebugLog.add("לא הצלחתי לנתב את הקול לטלפון: ${e.javaClass.simpleName}")
+        }
+    }
+
     private fun speakFinished() {
         main.removeCallbacks(speakTimeout)
         if (!speaking) return
+        routeToPhone(false)
         speaking = false
         val cb = onSpeakDone
         onSpeakDone = null
