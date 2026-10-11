@@ -13,6 +13,12 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
+        // מספר הגרסה (חלק מהמזהה של ההעלאה) מוצג במסך הראשי, כדי לדעת איזו גרסה מותקנת
+        buildConfigField("String", "BUILD_ID", "\"${System.getenv("GITHUB_SHA")?.take(7) ?: "local"}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     // מפתח חתימה קבוע, כדי שכל גרסה חדשה תתעדכן מעל הקודמת בלי להתנגש

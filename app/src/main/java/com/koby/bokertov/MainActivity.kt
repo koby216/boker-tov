@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
         }
         col.addView(text("בוקר טוב", 34f, true, Color.parseColor("#B8860B")))
+        col.addView(text("גרסה ${BuildConfig.BUILD_ID}", 14f, false, Color.parseColor("#777777")))
         status = text("", 22f, true)
         col.addView(status)
 
