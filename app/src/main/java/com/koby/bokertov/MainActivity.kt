@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.tts.TextToSpeech
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.InputType
@@ -26,6 +29,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var mainButton: Button
     private lateinit var checks: LinearLayout
+    private lateinit var debugView: TextView
+    private var testTts: TextToSpeech? = null
+    private val ticker = Handler(Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            debugView.text = DebugLog.text()
+            ticker.postDelayed(this, 1500)
+        }
+    }
 
     private val permissions = arrayOf(
         Manifest.permission.RECORD_AUDIO,
@@ -49,6 +61,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        ticker.post(tick)
+    }
+
+    override fun onPause() {
+        ticker.removeCallbacks(tick)
+        super.onPause()
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -84,6 +102,11 @@ class MainActivity : AppCompatActivity() {
 
         col.addView(bigButton("עדכן את האפליקציה") { openUpdate() })
         col.addView(text("לוחץ ומוריד את הגרסה החדשה. אחר כך פותחים את ההורדה ולוחצים התקן. ההגדרות נשמרות.", 16f))
+
+        col.addView(text("מה קורה בפנים (לבדיקה)", 20f, true))
+        debugView = text(DebugLog.text(), 15f)
+        col.addView(debugView)
+        col.addView(bigButton("בדיקת קול") { testVoice() })
 
         col.addView(text("לפני שמתחילים, צריך לסדר כמה דברים:", 20f, true))
         checks = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -169,6 +192,20 @@ class MainActivity : AppCompatActivity() {
         status.text = if (on) "מקשיבה. אמור: $phrase" else "כבויה"
         status.setTextColor(if (on) Color.parseColor("#2E7D32") else Color.parseColor("#C62828"))
         mainButton.text = if (on) "כבה" else "הפעל"
+    }
+
+    private fun testVoice() {
+        testTts?.shutdown()
+        testTts = TextToSpeech(this) { st ->
+            val t = testTts
+            if (st != TextToSpeech.SUCCESS || t == null) {
+                DebugLog.add("בדיקת קול: הקול של הטלפון לא עלה")
+                return@TextToSpeech
+            }
+            val r = t.setLanguage(java.util.Locale("he", "IL"))
+            DebugLog.add("בדיקת קול: עברית תוצאה $r (מינוס אומר שאין קול עברי)")
+            t.speak("שלום, אני שומעת אותך", TextToSpeech.QUEUE_FLUSH, null, "test")
+        }
     }
 
     private fun openUpdate() {

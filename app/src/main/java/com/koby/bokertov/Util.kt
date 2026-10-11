@@ -121,3 +121,18 @@ object MessageStore {
         return out
     }
 }
+
+/** יומן קצר של מה שקרה, כדי שאפשר יהיה לראות באפליקציה למה משהו לא עובד. */
+object DebugLog {
+    private val lines = ArrayList<String>()
+    private val fmt = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+
+    @Synchronized
+    fun add(msg: String) {
+        lines.add(fmt.format(java.util.Date()) + "  " + msg)
+        while (lines.size > 14) lines.removeAt(0)
+    }
+
+    @Synchronized
+    fun text(): String = if (lines.isEmpty()) "(עדיין אין)" else lines.reversed().joinToString("\n")
+}

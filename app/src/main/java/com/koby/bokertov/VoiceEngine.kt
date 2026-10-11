@@ -12,6 +12,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.widget.Toast
 import java.util.Locale
 
 /**
@@ -51,7 +52,10 @@ class VoiceEngine(
                 val t = tts ?: return@TextToSpeech
                 val r = t.setLanguage(Locale("he", "IL"))
                 if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    DebugLog.add("אין קול בעברית בטלפון (תוצאה $r)")
                     t.setLanguage(Locale.getDefault())
+                } else {
+                    DebugLog.add("קול בעברית מוכן")
                 }
                 t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
@@ -60,6 +64,8 @@ class VoiceEngine(
                     override fun onError(utteranceId: String?) { main.post { speakFinished() } }
                 })
                 ttsReady = true
+            } else {
+                DebugLog.add("הקול של הטלפון לא עלה (קוד $status)")
             }
         }
         if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
@@ -71,8 +77,7 @@ class VoiceEngine(
     fun stop() {
         running = false
         main.removeCallbacksAndMessages(null)
-        try { rec?.destroy() } catch (e: Exception) { }
-        rec = null
+        stopRec()
         tts?.stop()
         tts?.shutdown()
         tts = null
@@ -86,21 +91,41 @@ class VoiceEngine(
         } catch (e: Exception) { }
     }
 
+    private val speakTimeout = Runnable {
+        DebugLog.add("הדיבור לא הסתיים, ממשיכה")
+        speakFinished()
+    }
+
     private fun speak(text: String, tries: Int = 0, then: (() -> Unit)? = null) {
         if (!running) return
         speaking = true
         onSpeakDone = then
-        try { rec?.cancel() } catch (e: Exception) { }
+        main.removeCallbacks(watchdog)
+        main.removeCallbacks(wakeTrigger)
+        stopRec()
+        DebugLog.add("אומרת: $text")
+        if (tries == 0) {
+            try { Toast.makeText(ctx, text, Toast.LENGTH_LONG).show() } catch (e: Exception) { }
+        }
         val t = tts
         if (t == null || !ttsReady) {
             if (tries < 10) main.postDelayed({ speak(text, tries + 1, then) }, 500)
             else speakFinished()
             return
         }
-        t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime())
+        main.removeCallbacks(speakTimeout)
+        // רשת ביטחון: אם הקול נתקע, ממשיכים אחרי זמן סביר
+        main.postDelayed(speakTimeout, 4000L + text.length * 120L)
+        val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime())
+        if (res != TextToSpeech.SUCCESS) {
+            DebugLog.add("הקול לא הצליח לדבר (קוד $res)")
+            main.removeCallbacks(speakTimeout)
+            main.postDelayed({ speakFinished() }, 300)
+        }
     }
 
     private fun speakFinished() {
+        main.removeCallbacks(speakTimeout)
         if (!speaking) return
         speaking = false
         val cb = onSpeakDone
@@ -131,19 +156,43 @@ class VoiceEngine(
         }
         try {
             r.startListening(i)
+            // אם הזיהוי לא מגיב בכלל, מתחילים אותו מחדש
+            main.removeCallbacks(watchdog)
+            main.postDelayed(watchdog, 5000)
         } catch (e: Exception) {
             recreateSoon()
         }
     }
 
-    private fun recreateSoon() {
-        try { rec?.destroy() } catch (e: Exception) { }
+    /** סוגר את הזיהוי לגמרי. בפעם הבאה ייווצר חדש ונקי. */
+    private fun stopRec() {
+        val r = rec
         rec = null
-        main.postDelayed({ listen() }, 1000)
+        if (r != null) main.post {
+            try { r.cancel() } catch (e: Exception) { }
+            try { r.destroy() } catch (e: Exception) { }
+        }
+    }
+
+    private val watchdog = Runnable {
+        if (running && !speaking) {
+            DebugLog.add("הזיהוי לא הגיב, מתחילה מחדש")
+            stopRec()
+            listen()
+        }
+    }
+
+    private fun recreateSoon() {
+        stopRec()
+        main.postDelayed({ listen() }, 700)
     }
 
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
+        override fun onReadyForSpeech(params: Bundle?) {
+            main.removeCallbacks(watchdog)
+            main.postDelayed(watchdog, 20000)
+            if (beepOnReady) { beepOnReady = false; beep() }
+        }
         override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -162,12 +211,18 @@ class VoiceEngine(
 
         override fun onError(error: Int) {
             if (!running || speaking) return
+            main.removeCallbacks(watchdog)
+            if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                DebugLog.add("שגיאת זיהוי $error")
+            }
             when (error) {
                 SpeechRecognizer.ERROR_CLIENT -> return
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { onFatal(); return }
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> { recreateSoon(); return }
                 12, 13 -> { // השפה לא מותקנת לשימוש בלי אינטרנט
                     preferOffline = false
+                    recreateSoon()
+                    return
                 }
             }
             if (state == St.WAKE) {
@@ -178,6 +233,7 @@ class VoiceEngine(
         }
 
         override fun onResults(results: Bundle?) {
+            main.removeCallbacks(watchdog)
             if (!running || speaking) return
             val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             if (list.isEmpty()) { onError(SpeechRecognizer.ERROR_NO_MATCH); return }
@@ -195,6 +251,9 @@ class VoiceEngine(
     }
 
     private fun handleResults(list: List<String>) {
+        if (state != St.WAKE || list.any { Text.norm(it).contains(Prefs.wakePhrase(ctx)) }) {
+            DebugLog.add("שמעתי (${state.name}): ${list.first()}")
+        }
         when (state) {
             St.WAKE -> {
                 val phrase = Prefs.wakePhrase(ctx)
@@ -242,12 +301,12 @@ class VoiceEngine(
     }
 
     private var pendingWakeText: String? = null
+    private var beepOnReady = false
 
     private val wakeTrigger = Runnable {
         val hit = pendingWakeText
         pendingWakeText = null
         if (hit != null && running && !speaking && state == St.WAKE) {
-            try { rec?.cancel() } catch (e: Exception) { }
             onWakeText(hit)
         }
     }
@@ -255,16 +314,19 @@ class VoiceEngine(
     private fun onWakeText(hit: String) {
         val phrase = Prefs.wakePhrase(ctx)
         val rest = hit.substringAfter(phrase).trim()
-        beep()
         val cmd = if (rest.isNotEmpty()) Parser.parse(rest) else null
+        DebugLog.add("זיהיתי את מילת ההפעלה" + if (rest.isNotEmpty()) " ואחריה: $rest" else "")
+        stopRec()
         if (cmd != null) runCommand(cmd) else {
             state = St.COMMAND
             attempts = 0
-            main.postDelayed({ listen() }, 200)
+            beepOnReady = true   // הצליל נשמע רק כשהזיהוי באמת מוכן, ואז מדברים
+            main.postDelayed({ listen() }, 100)
         }
     }
 
     private fun runCommand(cmd: Cmd) {
+        DebugLog.add("מבצעת: ${cmd::class.simpleName}")
         deliver(actions.execute(cmd))
     }
 
