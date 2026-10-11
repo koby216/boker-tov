@@ -214,7 +214,7 @@ class SettingsActivity : AppCompatActivity() {
         startActivity(
             Intent(
                 Intent.ACTION_VIEW,
-                Uri.parse("https://github.com/koby216/boker-tov/releases/download/latest/boker-tov.apk")
+                Uri.parse("https://github.com/koby216/boker-tov/releases/latest/download/boker-tov.apk")
             )
         )
     }

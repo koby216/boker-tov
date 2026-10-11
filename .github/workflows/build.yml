@@ -24,15 +24,21 @@ jobs:
         with:
           name: boker-tov-apk
           path: app/build/outputs/apk/debug/*.apk
-      - name: Publish latest release (one fixed link)
+      - name: Publish release (stable link: releases/latest/download/boker-tov.apk)
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk boker-tov.apk
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest boker-tov.apk \
-            --title "הגרסה האחרונה" \
-            --notes "קובץ ההתקנה האחרון של בוקר טוב. לוחצים על boker-tov.apk להורדה." \
+          # מוחקים טיוטות ישנות שנשארו
+          gh api "repos/${{ github.repository }}/releases" --jq '.[] | select(.draft) | .id' \
+            | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/releases/{}" || true
+          # גרסה חדשה עם שם ייחודי בכל בנייה, והיא מסומנת כאחרונה
+          gh release create "build-${{ github.run_number }}" boker-tov.apk \
+            --title "גרסה ${{ github.run_number }}" \
+            --notes "קובץ ההתקנה האחרון של בוקר טוב." \
             --target "${{ github.sha }}" \
             --latest
+          # משאירים רק את 3 הגרסאות האחרונות
+          gh release list --limit 100 --json tagName --jq '.[3:][].tagName' \
+            | xargs -r -I{} gh release delete {} --yes --cleanup-tag || true
