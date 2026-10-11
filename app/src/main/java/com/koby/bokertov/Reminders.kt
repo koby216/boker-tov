@@ -46,9 +46,32 @@ object Reminders {
             val parts = (v as? String)?.split("|", limit = 2) ?: continue
             val at = parts[0].toLongOrNull() ?: continue
             val id = k.toIntOrNull() ?: continue
-            if (at > now) schedule(ctx, id, at, parts.getOrElse(1) { "" }) else edit.remove(k)
+            val label = parts.getOrElse(1) { "" }
+            if (at > now) schedule(ctx, id, at, label)
+            else {
+                // הטלפון היה כבוי בזמן התזכורת: מציגים אותה עכשיו כהתראה
+                if (now - at < 12 * 3600_000L) notify(ctx, id, "תזכורת שהוחמצה", label)
+                edit.remove(k)
+            }
         }
         edit.apply()
+    }
+
+    fun notify(ctx: Context, id: Int, title: String, label: String) {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(NotificationChannel("reminders", "תזכורות", NotificationManager.IMPORTANCE_HIGH))
+        val open = PendingIntent.getActivity(ctx, 7, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val n = NotificationCompat.Builder(ctx, "reminders")
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle(title)
+            .setContentText(label)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(label))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        try { nm.notify(1000 + id % 1000, n) } catch (e: SecurityException) { }
     }
 
     fun done(ctx: Context, id: Int) {
@@ -75,24 +98,15 @@ class ReminderReceiver : BroadcastReceiver() {
         val pr = goAsync()
 
         val text = "תזכורת. $label"
-        QuickSpeak.say(ctx, text, flush = true)
         val h = Handler(Looper.getMainLooper())
-        h.postDelayed({ QuickSpeak.say(ctx, text, flush = true) }, 6000)
-        h.postDelayed({ pr.finish() }, 12000)
+        fun speakNow() {
+            val eng = VoiceEngine.current
+            if (eng != null) eng.urgent(text) else QuickSpeak.say(ctx, text, flush = true, alarm = true)
+        }
+        speakNow()
+        h.postDelayed({ speakNow() }, 7000)
+        h.postDelayed({ pr.finish() }, 13000)
 
-        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.createNotificationChannel(NotificationChannel("reminders", "תזכורות", NotificationManager.IMPORTANCE_HIGH))
-        val open = PendingIntent.getActivity(ctx, 7, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val n = NotificationCompat.Builder(ctx, "reminders")
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("תזכורת")
-            .setContentText(label)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(label))
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        try { nm.notify(1000 + id % 1000, n) } catch (e: SecurityException) { }
+        Reminders.notify(ctx, id, "תזכורת", label)
     }
 }

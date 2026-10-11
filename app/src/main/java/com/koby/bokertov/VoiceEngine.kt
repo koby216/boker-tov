@@ -39,6 +39,7 @@ class VoiceEngine(
     private var state = St.WAKE
     private var attempts = 0
     private var lastRing = 0L
+    private var curUtt = ""
 
     private var pendingAsk: Outcome.Ask? = null
     private var pendingText: Outcome.AskText? = null
@@ -60,9 +61,10 @@ class VoiceEngine(
                 }
                 t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
-                    override fun onDone(utteranceId: String?) { main.post { speakFinished() } }
+                    // מתעלמים מסיום של משפט ישן שנקטע, כדי שלא יסיים בטעות את המשפט החדש
+                    override fun onDone(utteranceId: String?) { main.post { if (utteranceId == curUtt) speakFinished() } }
                     @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) { main.post { speakFinished() } }
+                    override fun onError(utteranceId: String?) { main.post { if (utteranceId == curUtt) speakFinished() } }
                 })
                 ttsReady = true
             } else {
@@ -132,7 +134,8 @@ class VoiceEngine(
         main.removeCallbacks(speakTimeout)
         // רשת ביטחון: אם הקול נתקע, ממשיכים אחרי זמן סביר
         main.postDelayed(speakTimeout, 4000L + text.length * 120L)
-        val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + System.nanoTime())
+        curUtt = "u" + System.nanoTime()
+        val res = t.speak(text, TextToSpeech.QUEUE_FLUSH, null, curUtt)
         if (res != TextToSpeech.SUCCESS) {
             DebugLog.add("הקול לא הצליח לדבר (קוד $res)")
             main.removeCallbacks(speakTimeout)
@@ -280,7 +283,11 @@ class VoiceEngine(
                 DebugLog.add("שגיאת זיהוי $error")
             }
             when (error) {
-                SpeechRecognizer.ERROR_CLIENT -> return
+                SpeechRecognizer.ERROR_CLIENT -> {
+                    // לא להיתקע: אם שום דבר לא ממשיך, השומר יתחיל הקשבה מחדש
+                    main.postDelayed(watchdog, 3000)
+                    return
+                }
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { onFatal(); return }
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> { recreateSoon(); return }
                 12, 13 -> { // השפה לא מותקנת לשימוש בלי אינטרנט
@@ -570,6 +577,11 @@ class VoiceEngine(
         main.post {
             if (running && !speaking) speak(text) { toWake() }
         }
+    }
+
+    /** משפט דחוף (תזכורת): קוטע כל דבר אחר ואומרת אותו עכשיו. */
+    fun urgent(text: String) {
+        main.post { if (running) speak(text) { toWake() } }
     }
 
     /** אומרת משפט (למשל "אני מקשיבה") ואז מחכה ישר לפקודה, בלי מילת הפעלה. */

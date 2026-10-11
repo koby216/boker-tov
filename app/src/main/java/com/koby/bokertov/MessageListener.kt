@@ -16,13 +16,27 @@ object QuickSpeak {
     private var ready = false
     private val pending = ArrayList<String>()
 
-    fun say(ctx: Context, text: String, flush: Boolean = false) {
+    private var alarmVoice = false
+
+    private fun voice(alarm: Boolean) {
+        tts?.setAudioAttributes(
+            android.media.AudioAttributes.Builder()
+                .setUsage(if (alarm) android.media.AudioAttributes.USAGE_ALARM else android.media.AudioAttributes.USAGE_MEDIA)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+        )
+    }
+
+    /** alarm = true: נשמע בעוצמת שעון מעורר (לתזכורות), גם אם עוצמת המדיה נמוכה. */
+    fun say(ctx: Context, text: String, flush: Boolean = false, alarm: Boolean = false) {
+        alarmVoice = alarm
         val app = ctx.applicationContext
         if (tts == null) {
             tts = TextToSpeech(app) { st ->
                 if (st == TextToSpeech.SUCCESS) {
                     tts?.setLanguage(Locale("he", "IL"))
                     ready = true
+                    voice(alarmVoice)
                     pending.forEach { tts?.speak(it, TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime()) }
                     pending.clear()
                 } else {
@@ -32,6 +46,7 @@ object QuickSpeak {
         }
         if (flush) pending.clear()
         if (ready) {
+            voice(alarm)
             tts?.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "q" + System.nanoTime())
         } else {
             pending.add(text)
@@ -54,10 +69,16 @@ class MessageListener : NotificationListenerService() {
         if (sbn.packageName != "com.whatsapp" && sbn.packageName != "com.whatsapp.w4b") return
         val n = sbn.notification ?: return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        // שיחות, "בודק הודעות חדשות" ושאר התראות מערכת של וואטסאפ אינן הודעות
+        if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
+        when (n.category) {
+            Notification.CATEGORY_CALL, Notification.CATEGORY_PROGRESS,
+            Notification.CATEGORY_SERVICE, Notification.CATEGORY_STATUS -> return
+        }
         val extras = n.extras ?: return
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
-        if (title.isBlank() || text.isBlank()) return
+        if (title.isBlank() || text.isBlank() || title.equals("WhatsApp", true)) return
 
         // התראה שהיא הד של תשובה ששלחנו: לא מדווחים עליה כהודעה חדשה
         if (MessageStore.isOwnEcho(title, text)) {

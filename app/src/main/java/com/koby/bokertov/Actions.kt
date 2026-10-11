@@ -76,6 +76,8 @@ class Actions(private val ctx: Context) {
     fun inCar(): Boolean {
         val ui = ctx.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
         if (ui.currentModeType == Configuration.UI_MODE_TYPE_CAR) return true
+        // נבחר רכב: רק הוא נחשב. אוזניות או שעון בבלוטות' לא חוסמים פעולות.
+        if (Prefs.carAddress(ctx).isNotEmpty()) return carConnected()
         return audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
         }
@@ -175,8 +177,9 @@ class Actions(private val ctx: Context) {
         val t = Text.norm(raw)
         val out = ArrayList<String>()
         val noAl = t.removePrefix("אל ").trim()
-        if (noAl.startsWith("ל") && noAl.length > 2) out.add(noAl.substring(1))
+        // קודם השם כמו שנאמר (למשל "לאה"), ואם אין כזה, בלי האות ל' ("לדני" -> "דני")
         out.add(noAl)
+        if (noAl.startsWith("ל") && noAl.length > 2) out.add(noAl.substring(1))
         return out.distinct()
     }
 
@@ -425,30 +428,30 @@ class Actions(private val ctx: Context) {
     private fun timer(seconds: Int, label: String): Outcome {
         if (label.isNotBlank()) {
             // תזכורת עם טקסט: מצלצלת ומקריאה בקול, ולכן קובעים אותה באפליקציה עצמה
-            val mins0 = seconds / 60
-            val spoken0 = when {
-                seconds < 60 -> "$seconds שניות"
-                seconds % 3600 == 0 -> "${seconds / 3600} שעות"
-                else -> "$mins0 דקות"
-            }
             Reminders.add(ctx, System.currentTimeMillis() + seconds * 1000L, label)
-            return Outcome.Say("בסדר, אזכיר לך $label בעוד $spoken0")
+            return Outcome.Say("בסדר, אזכיר לך $label בעוד ${spokenDuration(seconds)}")
         }
         val i = Intent(AlarmClock.ACTION_SET_TIMER).apply {
             putExtra(AlarmClock.EXTRA_LENGTH, seconds)
             putExtra(AlarmClock.EXTRA_SKIP_UI, true)
             if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label)
         }
-        val mins = seconds / 60
-        val spoken = when {
-            seconds < 60 -> "$seconds שניות"
-            seconds % 3600 == 0 -> "${seconds / 3600} שעות"
-            else -> "$mins דקות"
-        }
+        val spoken = spokenDuration(seconds)
         val said = if (label.isNotBlank()) "בסדר, אזכיר לך $label בעוד $spoken" else "בסדר, בעוד $spoken"
         return Outcome.Say(said) {
             if (!launch(i)) Unit
         }
+    }
+
+    private fun spokenDuration(sec: Int): String = when {
+        sec < 60 -> if (sec == 1) "שנייה" else "$sec שניות"
+        sec == 60 -> "דקה"
+        sec == 120 -> "שתי דקות"
+        sec < 3600 -> "${sec / 60} דקות"
+        sec == 3600 -> "שעה"
+        sec == 7200 -> "שעתיים"
+        sec % 3600 == 0 -> "${sec / 3600} שעות"
+        else -> "${sec / 60} דקות"
     }
 
     private fun alarm(h: Int, m: Int, label: String = ""): Outcome {
@@ -458,7 +461,7 @@ class Actions(private val ctx: Context) {
                 if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
             }
             Reminders.add(ctx, c.timeInMillis, label)
-            val mm0 = if (m == 0) "בדיוק" else "ו$m דקות"
+            val mm0 = if (m == 0) "בדיוק" else if (m == 1) "ודקה" else "ו$m דקות"
             return Outcome.Say("בסדר, אזכיר לך $label בשעה $h $mm0")
         }
         val i = Intent(AlarmClock.ACTION_SET_ALARM).apply {
@@ -467,7 +470,7 @@ class Actions(private val ctx: Context) {
             putExtra(AlarmClock.EXTRA_SKIP_UI, true)
             if (label.isNotBlank()) putExtra(AlarmClock.EXTRA_MESSAGE, label)
         }
-        val mm = if (m == 0) "בדיוק" else "ו$m דקות"
+        val mm = if (m == 0) "בדיוק" else if (m == 1) "ודקה" else "ו$m דקות"
         val said = if (label.isNotBlank()) "בסדר, אזכיר לך $label בשעה $h $mm" else "מעירה אותך בשעה $h $mm"
         return Outcome.Say(said) { launch(i) }
     }

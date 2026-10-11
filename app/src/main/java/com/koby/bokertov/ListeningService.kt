@@ -47,7 +47,13 @@ class ListeningService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startInForeground()
+        try {
+            startInForeground()
+        } catch (e: Exception) {
+            DebugLog.add("אנדרואיד לא אפשר להפעיל מיקרופון עכשיו: ${e.javaClass.simpleName}")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).apply { cancel(7); cancel(8) }
         val announce = intent?.getBooleanExtra(EXTRA_ANNOUNCE, false) == true
         if (engine == null) {

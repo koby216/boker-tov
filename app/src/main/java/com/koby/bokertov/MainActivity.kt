@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     private val askPermissions =
         registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
+            DrivingDetector.register(this)
             updateScreen()
         }
 

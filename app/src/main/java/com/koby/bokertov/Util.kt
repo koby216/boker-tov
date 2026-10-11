@@ -118,7 +118,10 @@ object ContactFinder {
                 }
             }
         }
-        return found.sortedBy { it.second }.map { it.first }.distinctBy { it.name }
+        val sorted = found.sortedBy { it.second }
+        // אם יש איש קשר ששמו בדיוק כמו שנאמר, לא שואלים בין כמה
+        val exact = sorted.filter { it.third == q }
+        return (if (exact.isNotEmpty()) exact else sorted).map { it.first }.distinctBy { it.name }
     }
 }
 
