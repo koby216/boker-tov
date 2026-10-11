@@ -10,6 +10,18 @@ import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
 import java.util.Locale
 
+object TtsFactory {
+    private const val GOOGLE = "com.google.android.tts"
+
+    /** מעדיפה את הקול של גוגל (באיכות טובה בעברית), גם בטלפונים שבהם הקול הרגיל גרוע, כמו Samsung. */
+    fun engine(ctx: Context): String? = try {
+        ctx.packageManager.getPackageInfo(GOOGLE, 0)
+        GOOGLE
+    } catch (e: Exception) {
+        null
+    }
+}
+
 /** מדברת משפט קצר גם כשהאפליקציה כבויה (בלי מיקרופון), למשל "הגיעה הודעה". */
 object QuickSpeak {
     private var tts: TextToSpeech? = null
@@ -32,7 +44,7 @@ object QuickSpeak {
         alarmVoice = alarm
         val app = ctx.applicationContext
         if (tts == null) {
-            tts = TextToSpeech(app) { st ->
+            tts = TextToSpeech(app, TextToSpeech.OnInitListener { st ->
                 if (st == TextToSpeech.SUCCESS) {
                     tts?.setLanguage(Locale("he", "IL"))
                     ready = true
@@ -42,7 +54,7 @@ object QuickSpeak {
                 } else {
                     DebugLog.add("הקול להודעות לא עלה (קוד $st)")
                 }
-            }
+            }, TtsFactory.engine(app))
         }
         if (flush) pending.clear()
         if (ready) {

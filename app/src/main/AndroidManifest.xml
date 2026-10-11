@@ -37,6 +37,7 @@
         <package android:name="com.whatsapp.w4b" />
         <package android:name="com.waze" />
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.tts" />
     </queries>
 
     <application

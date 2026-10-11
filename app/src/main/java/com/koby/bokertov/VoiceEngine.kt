@@ -49,9 +49,9 @@ class VoiceEngine(
 
     fun start() {
         running = true
-        tts = TextToSpeech(ctx) { status ->
+        tts = TextToSpeech(ctx, TextToSpeech.OnInitListener { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val t = tts ?: return@TextToSpeech
+                val t = tts ?: return@OnInitListener
                 val r = t.setLanguage(Locale("he", "IL"))
                 if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
                     DebugLog.add("אין קול בעברית בטלפון (תוצאה $r)")
@@ -70,7 +70,8 @@ class VoiceEngine(
             } else {
                 DebugLog.add("הקול של הטלפון לא עלה (קוד $status)")
             }
-        }
+        }, TtsFactory.engine(ctx))
+        DebugLog.add("מנוע הקול: ${TtsFactory.engine(ctx) ?: "ברירת המחדל של הטלפון"}")
         if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
             onFatal(); return
         }
