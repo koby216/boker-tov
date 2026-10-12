@@ -28,6 +28,12 @@ object CarLink {
 /** כשהטלפון מתחבר לרכב והאפליקציה לא רצה: התראה שלוחצים עליה כדי להפעיל. */
 class BluetoothReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
+        val dev = CarLink.deviceOf(intent)
+        // זוכרים מי מחובר, כדי לזהות את הרכב גם כשהוא מחובר רק לשיחות
+        if (dev != null) {
+            if (intent.action == BluetoothDevice.ACTION_ACL_CONNECTED) Prefs.setBtUp(ctx, dev.address, true)
+            if (intent.action == BluetoothDevice.ACTION_ACL_DISCONNECTED) Prefs.setBtUp(ctx, dev.address, false)
+        }
         if (intent.action != BluetoothDevice.ACTION_ACL_CONNECTED) return
         if (Prefs.muted(ctx)) return
         if (!CarLink.isMyCar(ctx, intent)) return

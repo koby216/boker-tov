@@ -90,7 +90,10 @@ class Actions(private val ctx: Context) {
         if (ui.currentModeType == Configuration.UI_MODE_TYPE_CAR) return true
         // בלי רכב שנבחר, לא מניחים שזה רכב רק כי מחוברות אוזניות או שעון בבלוטות'
         if (saved.isEmpty() || Build.VERSION.SDK_INT < 28) return false
-        return audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.address.equals(saved, ignoreCase = true) }
+        if (audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.address.equals(saved, ignoreCase = true) }) return true
+        // הרכב יכול להיות מחובר רק לשיחות (בלי מדיה), ואז הוא לא מופיע ברשימת השמע. מסתמכים על הודעות החיבור.
+        val adapter = try { android.bluetooth.BluetoothAdapter.getDefaultAdapter() } catch (e: Exception) { null }
+        return adapter?.isEnabled == true && Prefs.btUp(ctx).any { it.equals(saved, ignoreCase = true) }
     }
 
     private fun screenControl(): ControlAccessibilityService? = ControlAccessibilityService.instance

@@ -58,6 +58,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         DrivingDetector.register(this)
+        BtSeed.refresh(this)
         refresh()
         ticker.post(tick)
     }
@@ -218,6 +219,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun saveCar(name: String, address: String) {
         Prefs.setCar(this, address, name)
+        Prefs.setBtUp(this, address, true)   // בחרנו אותו כי הוא מחובר עכשיו
         DrivingDetector.register(this)
         android.widget.Toast.makeText(this, "הרכב נשמר: $name", android.widget.Toast.LENGTH_LONG).show()
         refresh()

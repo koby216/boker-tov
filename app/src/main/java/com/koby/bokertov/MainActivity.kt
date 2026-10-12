@@ -232,6 +232,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         Updater.check(this) { mustUpdate = true; updateScreen() }
+        BtSeed.refresh(this)
         updateScreen()
         ticker.post(tick)
     }

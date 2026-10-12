@@ -59,6 +59,15 @@ object Prefs {
     fun muted(ctx: Context): Boolean = sp(ctx).getBoolean("muted", false)
     fun setMuted(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("muted", v).apply()
 
+    /** מכשירי בלוטות' שמחוברים עכשיו (לפי הודעות החיבור והניתוק של המערכת). */
+    fun btUp(ctx: Context): Set<String> =
+        sp(ctx).getStringSet("bt_up", emptySet())?.toSet() ?: emptySet()
+    fun setBtUp(ctx: Context, address: String, up: Boolean) {
+        val now = btUp(ctx).map { it.uppercase() }.toMutableSet()
+        if (up) now.add(address.uppercase()) else now.remove(address.uppercase())
+        sp(ctx).edit().putStringSet("bt_up", now).apply()
+    }
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =
@@ -331,4 +340,37 @@ object Perms {
         if (android.os.Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
         if (android.os.Build.VERSION.SDK_INT >= 31) add(android.Manifest.permission.BLUETOOTH_CONNECT)
     }.toTypedArray()
+}
+
+/** בודקת במערכת לאילו מכשירי בלוטות' (שיחות ומדיה) הטלפון מחובר עכשיו, ומעדכנת את הרשימה. */
+object BtSeed {
+    fun refresh(ctx: Context) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31 &&
+                androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.BLUETOOTH_CONNECT)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) return
+            val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter() ?: return
+            val found = HashSet<String>()
+            var pending = 2
+            fun done() {
+                pending--
+                if (pending == 0) {
+                    val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+                    sp.edit().putStringSet("bt_up", found.map { it.uppercase() }.toSet()).apply()
+                }
+            }
+            for (profile in intArrayOf(android.bluetooth.BluetoothProfile.HEADSET, android.bluetooth.BluetoothProfile.A2DP)) {
+                val ok = adapter.getProfileProxy(ctx, object : android.bluetooth.BluetoothProfile.ServiceListener {
+                    override fun onServiceConnected(p: Int, proxy: android.bluetooth.BluetoothProfile) {
+                        try { proxy.connectedDevices.forEach { found.add(it.address) } } catch (e: Exception) { }
+                        try { adapter.closeProfileProxy(p, proxy) } catch (e: Exception) { }
+                        done()
+                    }
+                    override fun onServiceDisconnected(p: Int) {}
+                }, profile)
+                if (!ok) done()
+            }
+        } catch (e: Exception) { }
+    }
 }
