@@ -37,6 +37,16 @@ android {
 
     // מפתח חתימה קבוע, כדי שכל גרסה חדשה תתעדכן מעל הקודמת בלי להתנגש
     signingConfigs {
+        // מפתח העלאה לחנות Play. הוא לא נשמר בקוד: ה-CI מקבל אותו מסודות (secrets) בגיטהאב.
+        val uploadFile = System.getenv("UPLOAD_KEYSTORE_FILE")
+        if (uploadFile != null && file(uploadFile).exists()) {
+            create("upload") {
+                storeFile = file(uploadFile)
+                storePassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = "upload"
+                keyPassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")
+            }
+        }
         getByName("debug") {
             storeFile = file("debug.keystore")
             storePassword = "android"
@@ -48,8 +58,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // מפתח העלאה לחנות (חנות Play חותמת מחדש בעצמה, כך שהמפתח הזה משמש רק להעלאה)
-            signingConfig = signingConfigs.getByName("debug")
+            // אם יש מפתח העלאה (בענן, מהסודות), חותמים בו. בלעדיו הקובץ נשאר לא חתום.
+            signingConfigs.findByName("upload")?.let { signingConfig = it }
         }
     }
 

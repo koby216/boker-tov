@@ -16,7 +16,17 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Prepare upload key (if configured)
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$UPLOAD_KEYSTORE_BASE64" ]; then
+            echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.keystore"
+            echo "UPLOAD_KEYSTORE_FILE=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
+          fi
       - name: Build debug APK
+        env:
+          UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDirectDebug bundlePlayRelease --stacktrace
@@ -32,12 +42,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp app/build/outputs/apk/direct/debug/app-direct-debug.apk boker-tov.apk
-          cp app/build/outputs/bundle/playRelease/app-play-release.aab boker-tov.aab
+          if [ -n "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" ]; then
+            cp app/build/outputs/bundle/playRelease/app-play-release.aab boker-tov.aab
+          fi
           # מוחקים טיוטות ישנות שנשארו
           gh api "repos/${{ github.repository }}/releases" --jq '.[] | select(.draft) | .id' \
             | xargs -r -I{} gh api -X DELETE "repos/${{ github.repository }}/releases/{}" || true
           # גרסה חדשה עם שם ייחודי בכל בנייה, והיא מסומנת כאחרונה
-          gh release create "build-${{ github.run_number }}" boker-tov.apk boker-tov.aab \
+          gh release create "build-${{ github.run_number }}" boker-tov.apk $(ls boker-tov.aab 2>/dev/null) \
             --title "גרסה ${{ github.run_number }}" \
             --notes "קובץ ההתקנה האחרון של בוקר טוב." \
             --target "${{ github.sha }}" \
