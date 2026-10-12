@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mainButton: Button
     private lateinit var muteButton: Button
     private lateinit var updateButton: Button
+    private var mustUpdate = false   // יש גרסה חדשה: חובה לעדכן לפני שממשיכים
     private lateinit var skipView: TextView
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -51,6 +52,7 @@ class MainActivity : AppCompatActivity() {
 
     /** מתחיל להקשיב ואומר "אני מקשיבה". אם אין עדיין הרשאה, מבקש אותה. */
     private fun autoStart() {
+        if (mustUpdate) { updateScreen(); return }
         // אם חסר משהו, קודם המדריך הקולי (updateScreen מציג ואומר מה לעשות)
         if (Prefs.muted(this)) { updateScreen(); return }   // מושתקת: חוזרת לעבוד רק בלחיצה על "הפעל"
         if (!setupSkipped && nextStep() != null) { updateScreen(); return }
@@ -229,6 +231,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Updater.check(this) { mustUpdate = true; updateScreen() }
         updateScreen()
         ticker.post(tick)
     }
@@ -310,7 +313,7 @@ class MainActivity : AppCompatActivity() {
 
         // מופיע רק כשיש גרסה חדשה
         updateButton = Button(this).apply {
-            text = "יש גרסה חדשה. לחץ לעדכון"
+            text = "לחץ כאן לעדכון"
             textSize = 18f
             isAllCaps = false
             setTextColor(Color.WHITE)
@@ -319,7 +322,6 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { Updater.start(this@MainActivity) }
         }
         root.addView(updateButton, LinearLayout.LayoutParams(-1, dp(60)).apply { topMargin = dp(10) })
-        Updater.check(this) { updateButton.visibility = View.VISIBLE }
 
         skipView = TextView(this).apply {
             text = "דלג והמשך"
@@ -342,6 +344,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateScreen() {
+        if (mustUpdate) {
+            if (ListeningService.running) ListeningService.stop(this)
+            UiState.face = Face.OFF
+            character.setFace(Face.OFF)
+            caption.text = "יצאה גרסה חדשה. חובה לעדכן כדי להמשיך"
+            mainButton.visibility = View.GONE
+            muteButton.visibility = View.GONE
+            skipView.visibility = View.GONE
+            updateButton.visibility = View.VISIBLE
+            return
+        }
         val on = ListeningService.running
         if (!on && !setupSkipped) {
             val step = nextStep()
@@ -380,6 +393,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggle() {
+        if (mustUpdate) return
         if (ListeningService.running) {
             ListeningService.stop(this)
             mainButton.postDelayed({ updateScreen() }, 400)
