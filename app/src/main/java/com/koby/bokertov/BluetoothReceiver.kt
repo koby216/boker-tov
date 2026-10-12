@@ -25,13 +25,41 @@ object CarLink {
     }
 }
 
+object CarLearn {
+    private fun isCarKit(dev: BluetoothDevice): Boolean = try {
+        dev.bluetoothClass?.deviceClass == android.bluetooth.BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO
+    } catch (e: SecurityException) { false }
+
+    /** בלי לבחור רכב ידנית: אם מתחבר מכשיר שהוא ערכת רכב, זוכרים אותו כרכב. */
+    fun onConnected(ctx: Context, dev: BluetoothDevice) {
+        if (Prefs.carAddress(ctx).isNotEmpty() || !isCarKit(dev)) return
+        val name = try { dev.name } catch (e: SecurityException) { null } ?: dev.address
+        Prefs.setCar(ctx, dev.address, name)
+        DebugLog.add("זיהיתי רכב לבד: $name")
+    }
+
+    /** בנסיעה: אם מחובר בדיוק מכשיר רכב אחד, זה הרכב. */
+    fun onDriving(ctx: Context) {
+        if (Prefs.carAddress(ctx).isNotEmpty()) return
+        try {
+            val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter() ?: return
+            val kits = Prefs.btUp(ctx).mapNotNull { runCatching { adapter.getRemoteDevice(it) }.getOrNull() }
+                .filter { isCarKit(it) }
+            if (kits.size == 1) onConnected(ctx, kits[0])
+        } catch (e: SecurityException) { }
+    }
+}
+
 /** כשהטלפון מתחבר לרכב והאפליקציה לא רצה: התראה שלוחצים עליה כדי להפעיל. */
 class BluetoothReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val dev = CarLink.deviceOf(intent)
         // זוכרים מי מחובר, כדי לזהות את הרכב גם כשהוא מחובר רק לשיחות
         if (dev != null) {
-            if (intent.action == BluetoothDevice.ACTION_ACL_CONNECTED) Prefs.setBtUp(ctx, dev.address, true)
+            if (intent.action == BluetoothDevice.ACTION_ACL_CONNECTED) {
+                Prefs.setBtUp(ctx, dev.address, true)
+                CarLearn.onConnected(ctx, dev)
+            }
             if (intent.action == BluetoothDevice.ACTION_ACL_DISCONNECTED) Prefs.setBtUp(ctx, dev.address, false)
         }
         if (intent.action != BluetoothDevice.ACTION_ACL_CONNECTED) return

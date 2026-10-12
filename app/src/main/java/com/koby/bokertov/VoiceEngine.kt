@@ -530,8 +530,8 @@ class VoiceEngine(
                     if (n.contains(phrase)) n.substringAfter(phrase).trim() else raw
                 }
                 if (list.any { Text.norm(it).contains(phrase) } && cleaned.all { it.isBlank() }) {
-                    // אמרו "בוקר טוב" כשהיא כבר מחכה לבקשה: ממשיכים להקשיב בלי להתלונן
-                    main.postDelayed({ listen() }, 100)
+                    // אמרו "בוקר טוב" כשהיא כבר מחכה לבקשה: אומרת שוב "אני מקשיבה" וממשיכה כרגיל
+                    reListen()
                     return
                 }
                 val cmd = cleaned.firstNotNullOfOrNull { Parser.parse(it) }
@@ -551,38 +551,59 @@ class VoiceEngine(
                     runCommand(cmd)
                 }
             }
-            St.CONFIRM -> {
-                val ask = pendingAsk
-                val cmd = list.firstNotNullOfOrNull { Parser.parse(it) }
-                val yes = list.any { Parser.isYes(it) } || cmd is Cmd.Answer
-                val no = list.any { Parser.isNo(it) } || cmd is Cmd.Reject || cmd is Cmd.Cancel
-                when {
-                    ask == null -> toWake()
-                    no -> deliver(ask.onNo())
-                    yes -> deliver(ask.onYes())
-                    else -> noInput(heard = true)
-                }
+            St.CONFIRM, St.CHOOSE -> {
+                // אמרו "בוקר טוב" באמצע שאלה: מבטלים אותה ומתחילים מחדש
+                val wake = Prefs.wakePhrase(ctx)
+                if (list.any { Text.norm(it).contains(wake) }) { reListen(); return }
+                if (state == St.CONFIRM) handleConfirm(list) else handleChoose(list)
             }
-            St.FREE -> {
-                val q = pendingText
-                val text = list.first().trim()
-                if (q == null) toWake()
-                else if (Text.norm(text) in setOf("ביטול", "עזוב", "לא משנה")) deliver(Outcome.Say("בסדר, ביטלתי"))
-                else deliver(q.onText(text))
-            }
-            St.CHOOSE -> {
-                val q = pendingChoose
-                if (q == null) { toWake(); return }
-                if (list.any { Parser.isNo(it) }) { deliver(Outcome.Say("בסדר, ביטלתי")); return }
-                var idx: Int? = list.firstNotNullOfOrNull { Parser.ordinal(it) }
-                if (idx == null) {
-                    val heard = list.map { Text.norm(it) }
-                    idx = q.labels.indexOfFirst { l -> heard.any { h -> h.isNotEmpty() && Text.norm(l).contains(h) } }
-                        .takeIf { it >= 0 }
-                }
-                if (idx != null && idx < q.labels.size) deliver(q.onPick(idx)) else noInput(heard = true)
-            }
+            St.FREE -> handleFree(list)
         }
+    }
+
+    /** שוב "אני מקשיבה": מבטלת שאלה פתוחה וממתינה לבקשה, בלי מילת הפעלה. */
+    private fun reListen() {
+        pendingAsk = null; pendingText = null; pendingChoose = null
+        speak("אני מקשיבה") {
+            state = St.COMMAND
+            attempts = 0
+            quietFirst = true
+            listen()
+        }
+    }
+
+    private fun handleConfirm(list: List<String>) {
+        val ask = pendingAsk
+        val cmd = list.firstNotNullOfOrNull { Parser.parse(it) }
+        val yes = list.any { Parser.isYes(it) } || cmd is Cmd.Answer
+        val no = list.any { Parser.isNo(it) } || cmd is Cmd.Reject || cmd is Cmd.Cancel
+        when {
+            ask == null -> toWake()
+            no -> deliver(ask.onNo())
+            yes -> deliver(ask.onYes())
+            else -> noInput(heard = true)
+        }
+    }
+
+    private fun handleFree(list: List<String>) {
+        val q = pendingText
+        val text = list.first().trim()
+        if (q == null) toWake()
+        else if (Text.norm(text) in setOf("ביטול", "עזוב", "לא משנה")) deliver(Outcome.Say("בסדר, ביטלתי"))
+        else deliver(q.onText(text))
+    }
+
+    private fun handleChoose(list: List<String>) {
+        val q = pendingChoose
+        if (q == null) { toWake(); return }
+        if (list.any { Parser.isNo(it) }) { deliver(Outcome.Say("בסדר, ביטלתי")); return }
+        var idx: Int? = list.firstNotNullOfOrNull { Parser.ordinal(it) }
+        if (idx == null) {
+            val heard = list.map { Text.norm(it) }
+            idx = q.labels.indexOfFirst { l -> heard.any { h -> h.isNotEmpty() && Text.norm(l).contains(h) } }
+                .takeIf { it >= 0 }
+        }
+        if (idx != null && idx < q.labels.size) deliver(q.onPick(idx)) else noInput(heard = true)
     }
 
     private var lastPartial: List<String> = emptyList()

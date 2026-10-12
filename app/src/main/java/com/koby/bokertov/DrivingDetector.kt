@@ -90,6 +90,7 @@ class DrivingReceiver : BroadcastReceiver() {
     /** התחילה נסיעה: רק זוכרים שצריך להודיע, ולא מדברים בנסיעה. */
     private fun onDrivingStart(ctx: Context) {
         val sp = ctx.getSharedPreferences("boker", Context.MODE_PRIVATE)
+        CarLearn.onDriving(ctx)   // בלי רכב שנבחר: מנסים לזהות אותו לבד
         if (Prefs.carAddress(ctx).isEmpty()) {
             // עוד לא נבחר רכב: נזכיר לבחור כשהרכב יעצור
             if (!Prefs.carDismissed(ctx)) sp.edit().putBoolean("car_alert_pending", true).apply()
