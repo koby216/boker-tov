@@ -333,10 +333,12 @@ class VoiceEngine(
         (state == St.WAKE || (state == St.COMMAND && quietFirst)) && !Prefs.keepListening(ctx)
 
     private var wakeDelay = 150L
+    private var maxRms = -2f      // לבדיקה: כמה חזק המיקרופון שומע
+    private var partialCount = 0
 
     private val watchdog = Runnable {
         if (running && !speaking) {
-            DebugLog.add("הזיהוי לא הגיב, מתחילה מחדש")
+            DebugLog.add("הזיהוי לא הגיב, מתחילה מחדש (עוצמה מרבית ${maxRms.toInt()}, חלקיות $partialCount)")
             stopRec()
             main.postDelayed({ listen() }, 500)
         }
@@ -351,20 +353,29 @@ class VoiceEngine(
         override fun onReadyForSpeech(params: Bundle?) {
             main.removeCallbacks(watchdog)
             main.postDelayed(watchdog, 12000)
+            maxRms = -2f
+            partialCount = 0
             if (!holdMute()) Earcon.restore(ctx)
             if (beepOnReady) { beepOnReady = false; beep() }
         }
         override fun onBeginningOfSpeech() {
             wakeDelay = 150L
             DebugLog.add("שמעתי התחלת דיבור")
+            // רעש (למשל ברכב) גורם לזיהוי "לשמוע" בלי להבין מילים. אם אין טקסט אחרי רגע, מתחילים מחדש
+            if (state == St.WAKE) {
+                main.removeCallbacks(watchdog)
+                main.postDelayed(watchdog, 6000)
+            }
         }
-        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onRmsChanged(rmsdB: Float) { if (rmsdB > maxRms) maxRms = rmsdB }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() { DebugLog.add("הדיבור הסתיים") }
         override fun onPartialResults(partialResults: Bundle?) {
             if (!running || speaking) return
             val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
             if (list.isEmpty() || list.all { Text.norm(it).isEmpty() }) return
+            partialCount++
+            if (state == St.WAKE) { main.removeCallbacks(watchdog); main.postDelayed(watchdog, 12000) }
             if (state != St.WAKE) {
                 // הטלפון מחזיר את התשובה הסופית באיחור, לכן פועלים על החלקית אחרי רגע של שקט
                 lastPartial = list
