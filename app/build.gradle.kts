@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.koby.bokertov"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.koby.bokertov"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // כל העלאה לחנות צריכה מספר גדול יותר: משתמשים במספר הבנייה של ה-CI
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "0.1"
