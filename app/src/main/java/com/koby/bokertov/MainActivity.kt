@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var caption: TextView
     private lateinit var mainButton: Button
     private lateinit var muteButton: Button
+    private lateinit var updateButton: Button
     private lateinit var skipView: TextView
     private val ticker = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
@@ -306,6 +307,19 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { muteAll() }
         }
         root.addView(muteButton, LinearLayout.LayoutParams(-1, dp(60)))
+
+        // מופיע רק כשיש גרסה חדשה
+        updateButton = Button(this).apply {
+            text = "יש גרסה חדשה. לחץ לעדכון"
+            textSize = 18f
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#1565C0"))
+            visibility = View.GONE
+            setOnClickListener { Updater.start(this@MainActivity) }
+        }
+        root.addView(updateButton, LinearLayout.LayoutParams(-1, dp(60)).apply { topMargin = dp(10) })
+        Updater.check(this) { updateButton.visibility = View.VISIBLE }
 
         skipView = TextView(this).apply {
             text = "דלג והמשך"

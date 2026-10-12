@@ -78,4 +78,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     // זיהוי נסיעה (שירות התנועה של גוגל)
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // עדכון מתוך האפליקציה דרך חנות Play (רק בגרסה לחנות)
+    "playImplementation"("com.google.android.play:app-update:2.1.0")
 }
