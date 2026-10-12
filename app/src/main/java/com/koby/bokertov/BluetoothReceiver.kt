@@ -39,6 +39,11 @@ class BluetoothReceiver : BroadcastReceiver() {
         if (!CarLink.isMyCar(ctx, intent)) return
         DebugLog.add("הטלפון התחבר לרכב")
         if (ListeningService.running) return   // השירות שרץ אומר את המשפט בעצמו
+        // הרכב מתחבר מחדש לפעמים באמצע נסיעה (למשל אחרי שיחה): אם נעצרה רק לפני רגע, לא מפעילים שוב
+        if (Prefs.stoppedRecently(ctx, 15 * 60 * 1000L)) {
+            DebugLog.add("חיבור חוזר של הרכב, לא מפעילה שוב (נעצרה לפני פחות מ-15 דקות)")
+            return
+        }
         show(ctx)   // רשת ביטחון: התראה שלוחצים עליה
         // מפעילים לבד: פותחים את המסך (בעזרת ההרשאה להצגה מעל אפליקציות), והוא מתחיל להקשיב ואומר "אני מקשיבה".
         // מחכים רגע שהאודיו של הרכב יתחבר.

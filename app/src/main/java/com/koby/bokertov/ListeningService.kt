@@ -128,6 +128,7 @@ class ListeningService : Service() {
         engine = null
         VoiceEngine.current = null
         running = false
+        Prefs.markStopped(this)
         super.onDestroy()
     }
 

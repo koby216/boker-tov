@@ -68,6 +68,11 @@ object Prefs {
         sp(ctx).edit().putStringSet("bt_up", now).apply()
     }
 
+    /** מתי האפליקציה נעצרה לאחרונה. כדי שחיבור חוזר של הרכב באמצע נסיעה לא יפעיל אותה שוב. */
+    fun markStopped(ctx: Context) = sp(ctx).edit().putLong("stopped_at", System.currentTimeMillis()).apply()
+    fun stoppedRecently(ctx: Context, ms: Long): Boolean =
+        System.currentTimeMillis() - sp(ctx).getLong("stopped_at", 0L) < ms
+
     fun carAddress(ctx: Context): String = sp(ctx).getString("car_addr", "") ?: ""
     fun carName(ctx: Context): String = sp(ctx).getString("car_name", "") ?: ""
     fun setCar(ctx: Context, address: String, name: String) =
