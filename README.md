@@ -28,3 +28,4 @@
 
 ## בנייה
 GitHub Actions בונה קובץ התקנה בכל העלאה: לשונית **Actions**, ההרצה האחרונה, **Artifacts**, `boker-tov-apk`.
+
