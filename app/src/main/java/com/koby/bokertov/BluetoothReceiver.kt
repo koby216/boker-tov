@@ -39,7 +39,23 @@ class BluetoothReceiver : BroadcastReceiver() {
         if (!CarLink.isMyCar(ctx, intent)) return
         DebugLog.add("הטלפון התחבר לרכב")
         if (ListeningService.running) return   // השירות שרץ אומר את המשפט בעצמו
-        show(ctx)
+        show(ctx)   // רשת ביטחון: התראה שלוחצים עליה
+        // מפעילים לבד: פותחים את המסך (בעזרת ההרשאה להצגה מעל אפליקציות), והוא מתחיל להקשיב ואומר "אני מקשיבה".
+        // מחכים רגע שהאודיו של הרכב יתחבר.
+        val pending = goAsync()
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                if (!ListeningService.running && !Prefs.muted(ctx)) {
+                    ctx.startActivity(
+                        Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                    DebugLog.add("פתחתי את האפליקציה אחרי החיבור לרכב")
+                }
+            } catch (e: Exception) {
+                DebugLog.add("לא הצלחתי לפתוח את האפליקציה ברכב: ${e.javaClass.simpleName}")
+            }
+            pending.finish()
+        }, 3000)
     }
 
     companion object {
